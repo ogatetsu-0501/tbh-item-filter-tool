@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TaskBar Hero アイテム検索</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">TaskBar Hero Data Tool</p>
+      <h1>アイテム検索</h1>
+      <p class="header-description">
+        アイテム名・分類・装備条件・能力値・ユニーク効果を組み合わせて検索できます。
+      </p>
+    </div>
+    <div class="header-actions">
+      <button id="export-button" class="button button-primary" type="button">検索結果をCSV出力</button>
+      <button id="reset-button" class="button" type="button">条件をリセット</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="summary-cards" class="summary-grid" aria-label="データ概要"></section>
+
+    <section class="panel filter-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">FILTER</p>
+          <h2>絞り込み条件</h2>
+        </div>
+        <button id="toggle-filter-button" class="button button-small" type="button" aria-expanded="true">
+          条件を折りたたむ
+        </button>
+      </div>
+
+      <div id="filter-content">
+        <div class="filter-grid">
+          <label class="field field-wide">
+            <span>キーワード</span>
+            <input id="keyword" type="search" placeholder="日本語名・英語名・ID・能力名">
+          </label>
+
+          <label class="field">
+            <span>アイテムID</span>
+            <input id="item-key" type="text" inputmode="numeric" placeholder="例: 301011">
+          </label>
+
+          <label class="field">
+            <span>アイテム種別</span>
+            <select id="item-type"></select>
+          </label>
+
+          <label class="field">
+            <span>クラス</span>
+            <select id="item-class"></select>
+          </label>
+
+          <label class="field">
+            <span>装備部位</span>
+            <select id="parts"></select>
+          </label>
+
+          <label class="field">
+            <span>装備種</span>
+            <select id="gear-type"></select>
+          </label>
+
+          <label class="field">
+            <span>装備グループ</span>
+            <select id="gear-group"></select>
+          </label>
+
+          <label class="field">
+            <span>バリアント</span>
+            <select id="variant">
+              <option value="">すべて</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="none">なし</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>入手可否</span>
+            <select id="obtainable">
+              <option value="">すべて</option>
+              <option value="true">入手可能</option>
+              <option value="false">入手不可</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>取引可否</span>
+            <select id="tradable">
+              <option value="">すべて</option>
+              <option value="true">取引可能</option>
+              <option value="false">取引不可</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>最低レベル</span>
+            <input id="level-min" type="number" min="0" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field">
+            <span>最高レベル</span>
+            <input id="level-max" type="number" min="0" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field">
+            <span>最低ゴールド</span>
+            <input id="gold-min" type="number" min="0" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field">
+            <span>最高ゴールド</span>
+            <input id="gold-max" type="number" min="0" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field">
+            <span>装飾スロット 最低数</span>
+            <input id="decoration-min" type="number" min="0" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field">
+            <span>彫刻スロット 最低数</span>
+            <input id="engraving-min" type="number" min="0" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field">
+            <span>刻印スロット 最低数</span>
+            <input id="inscription-min" type="number" min="0" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field">
+            <span>ユニーク効果</span>
+            <select id="unique-mod"></select>
+          </label>
+        </div>
+
+        <fieldset class="grade-fieldset">
+          <legend>レアリティ</legend>
+          <div id="grade-filters" class="chip-list"></div>
+        </fieldset>
+
+        <section class="advanced-section">
+          <div class="advanced-heading">
+            <div>
+              <h3>能力条件</h3>
+              <p>基本能力・固有能力の種類、計算方式、数値範囲を指定できます。</p>
+            </div>
+            <div class="inline-controls">
+              <label class="compact-field">
+                <span>複数条件</span>
+                <select id="stat-match-mode">
+                  <option value="and">すべて満たす（AND）</option>
+                  <option value="or">いずれかを満たす（OR）</option>
+                </select>
+              </label>
+              <button id="add-stat-filter-button" class="button button-small" type="button">能力条件を追加</button>
+            </div>
+          </div>
+          <div id="stat-filter-list" class="stat-filter-list"></div>
+        </section>
+
+        <div class="filter-footer">
+          <label class="check-field">
+            <input id="include-all-class" type="checkbox" checked>
+            <span>クラス指定時に「全クラス」装備を含める</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel result-panel">
+      <div class="result-toolbar">
+        <div>
+          <p class="section-kicker">RESULT</p>
+          <h2 id="result-count">0件</h2>
+          <p id="result-note" class="muted"></p>
+        </div>
+        <div class="result-controls">
+          <button id="one-screen-mode-button" class="button button-small" type="button" aria-pressed="false">
+            1画面モード
+          </button>
+          <label class="compact-field">
+            <span>並び順</span>
+            <select id="sort-key">
+              <option value="grade">レアリティ</option>
+              <option value="level">レベル</option>
+              <option value="name">日本語名</option>
+              <option value="key">アイテムID</option>
+              <option value="gold">ゴールド</option>
+            </select>
+          </label>
+          <label class="compact-field">
+            <span>方向</span>
+            <select id="sort-direction">
+              <option value="asc">昇順</option>
+              <option value="desc">降順</option>
+            </select>
+          </label>
+          <label class="compact-field">
+            <span>1ページ</span>
+            <select id="page-size">
+              <option value="25">25件</option>
+              <option value="50" selected>50件</option>
+              <option value="100">100件</option>
+              <option value="250">250件</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="result-table">
+          <thead>
+            <tr>
+              <th data-column="item-key">ID</th>
+              <th data-column="name">名称</th>
+              <th data-column="item-type">種別</th>
+              <th data-column="grade">レアリティ</th>
+              <th data-column="level">Lv</th>
+              <th data-column="class">クラス</th>
+              <th data-column="equipment">装備分類</th>
+              <th data-column="stats">能力</th>
+              <th id="unique-mod-header" data-column="unique-mod">ユニーク効果</th>
+              <th data-column="gold">ゴールド</th>
+              <th data-column="status">状態</th>
+            </tr>
+          </thead>
+          <tbody id="result-body"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <button id="previous-page-button" class="button button-small" type="button">前へ</button>
+        <span id="page-status">1 / 1</span>
+        <button id="next-page-button" class="button button-small" type="button">次へ</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="detail-dialog" class="detail-dialog">
+    <div class="dialog-header">
+      <div>
+        <p class="section-kicker">ITEM DETAIL</p>
+        <h2 id="detail-title">アイテム詳細</h2>
+      </div>
+      <button id="close-dialog-button" class="button button-small" type="button">閉じる</button>
+    </div>
+    <div id="detail-content" class="detail-content"></div>
+  </dialog>
+
+  <template id="stat-filter-template">
+    <div class="stat-filter-row">
+      <label class="field">
+        <span>対象</span>
+        <select data-field="source">
+          <option value="any">基本＋固有</option>
+          <option value="base">基本能力</option>
+          <option value="inherent">固有能力</option>
+        </select>
+      </label>
+      <label class="field field-stat">
+        <span>能力</span>
+        <select data-field="stat"></select>
+      </label>
+      <label class="field">
+        <span>計算方式</span>
+        <select data-field="mod">
+          <option value="">すべて</option>
+          <option value="FLAT">固定値</option>
+          <option value="ADDITIVE">加算倍率</option>
+          <option value="MULTIPLICATIVE">乗算倍率</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>最小値</span>
+        <input data-field="min" type="number" step="any" placeholder="指定なし">
+      </label>
+      <label class="field">
+        <span>最大値</span>
+        <input data-field="max" type="number" step="any" placeholder="指定なし">
+      </label>
+      <button class="button button-danger button-small stat-filter-remove" type="button">削除</button>
+    </div>
+  </template>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
