@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>TaskBar Hero アイテム検索</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -51,6 +52,11 @@
           <label class="field">
             <span>アイテム種別</span>
             <select id="item-type"></select>
+          </label>
+
+          <label class="field">
+            <span>素材分類</span>
+            <select id="material-category"></select>
           </label>
 
           <label class="field">
@@ -184,8 +190,8 @@
           <p id="result-note" class="muted"></p>
         </div>
         <div class="result-controls">
-          <button id="one-screen-mode-button" class="button button-small" type="button" aria-pressed="false">
-            1画面モード
+          <button id="one-screen-mode-button" class="button button-small" type="button" aria-haspopup="dialog">
+            全件を1画面表示
           </button>
           <label class="compact-field">
             <span>並び順</span>
@@ -195,8 +201,32 @@
               <option value="name">日本語名</option>
               <option value="key">アイテムID</option>
               <option value="gold">ゴールド</option>
+              <option value="stat">指定能力値</option>
             </select>
           </label>
+          <div id="stat-sort-controls" class="stat-sort-controls" hidden>
+            <label class="compact-field">
+              <span>能力の対象</span>
+              <select id="sort-stat-source">
+                <option value="any">基本＋固有</option>
+                <option value="base">基本能力</option>
+                <option value="inherent">固有能力</option>
+              </select>
+            </label>
+            <label class="compact-field stat-sort-name-field">
+              <span>能力</span>
+              <select id="sort-stat"></select>
+            </label>
+            <label class="compact-field">
+              <span>計算方式</span>
+              <select id="sort-stat-mod">
+                <option value="">すべて</option>
+                <option value="FLAT">固定値</option>
+                <option value="ADDITIVE">加算倍率</option>
+                <option value="MULTIPLICATIVE">乗算倍率</option>
+              </select>
+            </label>
+          </div>
           <label class="compact-field">
             <span>方向</span>
             <select id="sort-direction">
@@ -228,7 +258,7 @@
               <th data-column="class">クラス</th>
               <th data-column="equipment">装備分類</th>
               <th data-column="stats">能力</th>
-              <th id="unique-mod-header" data-column="unique-mod">ユニーク効果</th>
+              <th data-column="unique-mod">ユニーク能力</th>
               <th data-column="gold">ゴールド</th>
               <th data-column="status">状態</th>
             </tr>
@@ -244,6 +274,21 @@
       </div>
     </section>
   </main>
+
+
+  <dialog id="one-screen-dialog" class="one-screen-dialog" aria-labelledby="one-screen-title">
+    <div class="one-screen-dialog-header">
+      <div>
+        <p class="section-kicker">ALL RESULTS</p>
+        <h2 id="one-screen-title">検索結果を1画面表示</h2>
+        <p id="one-screen-meta" class="muted"></p>
+      </div>
+      <button id="close-one-screen-button" class="button button-small" type="button">閉じる</button>
+    </div>
+    <div id="one-screen-viewport" class="one-screen-viewport">
+      <div id="one-screen-sheet" class="one-screen-sheet"></div>
+    </div>
+  </dialog>
 
   <dialog id="detail-dialog" class="detail-dialog">
     <div class="dialog-header">
