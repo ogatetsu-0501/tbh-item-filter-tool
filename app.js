@@ -7,7 +7,6 @@
   const TYPE_LABELS = {
     GEAR: "装備",
     MATERIAL: "素材",
-    STAGEBOX: "ステージボックス",
   };
 
   const CLASS_LABELS = {
@@ -37,13 +36,23 @@
     WEAPON: "武器",
     ARMOR: "防具",
     ACCESSORY: "アクセサリー",
+    COMMON: "共通",
   };
 
   const MATERIAL_CATEGORY_LABELS = {
-    material: "素材",
     decoration: "装飾",
     engraving: "彫刻",
     inscription: "碑文",
+    material: "素材",
+  };
+
+  const MATERIAL_TYPE_LABELS = {
+    DECORATION: "装飾",
+    ENGRAVING: "彫刻",
+    INSCRIPTION: "碑文",
+    CRAFTING: "クラフト素材",
+    OFFERING: "奉納素材",
+    SOULSTONE: "ソウルストーン",
   };
 
   const MOD_LABELS = {
@@ -64,19 +73,31 @@
     BaseAttackCountReduction: "基本攻撃回数減少",
     BlockChance: "ブロック率",
     CastSpeed: "詠唱速度",
+    ChaosDamagePercent: "混沌ダメージ",
+    ChaosResistance: "混沌耐性",
+    ColdDamagePercent: "冷気ダメージ",
+    ColdResistance: "冷気耐性",
     CooldownReduction: "クールタイム短縮",
     CriticalChance: "クリティカル率",
     CriticalDamage: "クリティカルダメージ",
     DamageAbsorption: "ダメージ吸収",
     DamageReduction: "ダメージ軽減",
     DodgeChance: "回避率",
+    FireDamagePercent: "火炎ダメージ",
+    FireResistance: "火炎耐性",
     HpLeech: "HP吸収",
     HpRegenPerSec: "毎秒HP回復",
+    IncreaseAreaOfEffectDamage: "範囲攻撃ダメージ",
     IncreaseExpAmount: "経験値獲得量増加",
     IncreaseProjectileDamage: "投射物ダメージ増加",
+    IncreaseSummonDamage: "召喚ダメージ増加",
+    LightningDamagePercent: "雷ダメージ",
+    LightningResistance: "雷耐性",
     MaxHp: "最大HP",
     MovementSpeed: "移動速度",
     Multistrike: "マルチストライク",
+    PhysicalDamagePercent: "物理ダメージ",
+    PhysicalResistance: "物理耐性",
     ProjectileCount: "投射物数",
     SkillDurationIncrease: "スキル持続時間増加",
     SkillHealIncrease: "スキル回復量増加",
@@ -111,7 +132,7 @@
   const SLOT_LABELS = {
     decoration: "装飾",
     engraving: "彫刻",
-    inscription: "刻印",
+    inscription: "碑文",
   };
 
   const EMPTY_LABEL = "—";
@@ -119,11 +140,40 @@
   const DEFAULT_PAGE_SIZE = 50;
   const MAX_STAT_FILTERS = 5;
 
+  const GEAR_SORT_OPTIONS = [
+    ["grade", "レアリティ"],
+    ["level", "レベル"],
+    ["name", "日本語名"],
+    ["key", "アイテムID"],
+    ["gold", "ゴールド"],
+    ["stat", "指定能力値"],
+  ];
+
+  const MATERIAL_GENERIC_SORT_OPTIONS = [
+    ["grade", "レアリティ"],
+    ["name", "日本語名"],
+    ["key", "アイテムID"],
+    ["gold", "ゴールド"],
+    ["material-type", "素材種別"],
+  ];
+
+  const MATERIAL_EFFECT_SORT_OPTIONS = [
+    ...MATERIAL_GENERIC_SORT_OPTIONS,
+    ["target", "対象装備分類"],
+    ["material-stat", "素材能力"],
+    ["tier", "Tier"],
+    ["min-value", "最小値"],
+    ["max-value", "最大値"],
+    ["interval", "刻み"],
+  ];
+
   /* ========================================================
      データと状態
      ======================================================== */
   const data = window.TBH_DATA;
   const items = Array.isArray(data?.items) ? data.items : [];
+  const gearItems = items.filter((item) => item.type === "GEAR");
+  const materialItems = items.filter((item) => item.type === "MATERIAL");
   const meta = data?.meta ?? {};
   const ja = data?.ja ?? {};
   const itemNamesJa = ja.item ?? {};
@@ -131,7 +181,7 @@
   const gearTypeLabels = ja.gearType ?? {};
 
   const state = {
-    filteredItems: [],
+    results: [],
     currentPage: 1,
     pageSize: DEFAULT_PAGE_SIZE,
     statFilterSerial: 0,
@@ -149,11 +199,20 @@
     itemKey: document.querySelector("#item-key"),
     itemType: document.querySelector("#item-type"),
     materialCategory: document.querySelector("#material-category"),
+    materialCategoryField: document.querySelector("#material-category-field"),
     itemClass: document.querySelector("#item-class"),
     parts: document.querySelector("#parts"),
     gearType: document.querySelector("#gear-type"),
     gearGroup: document.querySelector("#gear-group"),
     variant: document.querySelector("#variant"),
+    materialTargetGroup: document.querySelector("#material-target-group"),
+    materialStat: document.querySelector("#material-stat"),
+    materialMod: document.querySelector("#material-mod"),
+    materialTierMin: document.querySelector("#material-tier-min"),
+    materialTierMax: document.querySelector("#material-tier-max"),
+    materialValueMin: document.querySelector("#material-value-min"),
+    materialValueMax: document.querySelector("#material-value-max"),
+    materialTypeDetail: document.querySelector("#material-type-detail"),
     obtainable: document.querySelector("#obtainable"),
     tradable: document.querySelector("#tradable"),
     levelMin: document.querySelector("#level-min"),
@@ -185,6 +244,8 @@
     sortStatMod: document.querySelector("#sort-stat-mod"),
     sortDirection: document.querySelector("#sort-direction"),
     pageSize: document.querySelector("#page-size"),
+    resultTable: document.querySelector("#result-table"),
+    resultHead: document.querySelector("#result-head"),
     resultCount: document.querySelector("#result-count"),
     resultNote: document.querySelector("#result-note"),
     resultBody: document.querySelector("#result-body"),
@@ -241,10 +302,6 @@
     return gradeLabels[grade] ?? grade ?? EMPTY_LABEL;
   }
 
-  function getTypeLabel(type) {
-    return TYPE_LABELS[type] ?? type ?? EMPTY_LABEL;
-  }
-
   function getClassLabel(itemClass) {
     return CLASS_LABELS[itemClass] ?? itemClass ?? EMPTY_LABEL;
   }
@@ -261,38 +318,12 @@
     return GEAR_GROUP_LABELS[gearGroup] ?? gearGroup ?? EMPTY_LABEL;
   }
 
-  /* ========================================================
-     素材アイテムの分類をアイテムIDから判定します。
-     DECORATION / ENGRAVING / INSCRIPTION 以外は、
-     利用者向けにはまとめて「素材」として扱います。
-     ======================================================== */
-  function getMaterialCategory(item) {
-    if (item.type !== "MATERIAL") {
-      return null;
-    }
-
-    const itemKey = Number(item.key);
-    const isDecoration = itemKey >= 110000 && itemKey < 120000;
-    const isEngraving = itemKey >= 120000 && itemKey < 130000;
-    const isInscription = itemKey >= 130000 && itemKey < 140000;
-
-    if (isDecoration) {
-      return "decoration";
-    }
-
-    if (isEngraving) {
-      return "engraving";
-    }
-
-    if (isInscription) {
-      return "inscription";
-    }
-
-    return "material";
-  }
-
   function getMaterialCategoryLabel(category) {
     return MATERIAL_CATEGORY_LABELS[category] ?? category ?? EMPTY_LABEL;
+  }
+
+  function getMaterialTypeLabel(materialType) {
+    return MATERIAL_TYPE_LABELS[materialType] ?? materialType ?? EMPTY_LABEL;
   }
 
   function getStatLabel(stat) {
@@ -307,32 +338,17 @@
   }
 
   function getAllStats(item) {
-    const stats = item.stats;
-    if (!stats) {
+    if (!item.stats) {
       return [];
     }
 
     const result = [];
-    for (const stat of stats.base ?? []) {
-      result.push({
-        source: "base",
-        stat: stat.stat,
-        mod: stat.mod,
-        value: stat.value,
-        disp: stat.disp,
-      });
+    for (const stat of item.stats.base ?? []) {
+      result.push({ ...stat, source: "base" });
     }
-
-    for (const stat of stats.inherent ?? []) {
-      result.push({
-        source: "inherent",
-        stat: stat.stat,
-        mod: stat.mod,
-        value: stat.value,
-        disp: stat.disp,
-      });
+    for (const stat of item.stats.inherent ?? []) {
+      result.push({ ...stat, source: "inherent" });
     }
-
     return result;
   }
 
@@ -345,86 +361,159 @@
 
   function fillSelect(select, values, labelGetter, allLabel = "すべて") {
     select.replaceChildren();
-    select.append(createOption("", allLabel));
-
+    if (allLabel !== null) {
+      select.append(createOption("", allLabel));
+    }
     for (const value of values) {
       select.append(createOption(value, labelGetter(value)));
     }
   }
 
-  function getDistinctValues(fieldName) {
-    const values = new Set();
-    for (const item of items) {
-      const value = item[fieldName];
-      if (value !== null && value !== undefined && value !== "") {
-        values.add(value);
-      }
+  function setHidden(elements, hidden) {
+    for (const element of elements) {
+      element.hidden = hidden;
     }
-    return Array.from(values);
   }
 
-  function compareNullableNumbers(leftValue, rightValue) {
-    const left = leftValue ?? Number.POSITIVE_INFINITY;
-    const right = rightValue ?? Number.POSITIVE_INFINITY;
-    return left - right;
+  function isGearMode() {
+    return dom.itemType.value === "GEAR";
+  }
+
+  function isGenericMaterialMode() {
+    return !isGearMode() && dom.materialCategory.value === "material";
+  }
+
+  function compareOptionalNumbers(leftValue, rightValue, directionFactor) {
+    const hasLeftValue = leftValue !== null && leftValue !== undefined;
+    const hasRightValue = rightValue !== null && rightValue !== undefined;
+    if (!hasLeftValue && !hasRightValue) {
+      return 0;
+    }
+    if (!hasLeftValue) {
+      return 1;
+    }
+    if (!hasRightValue) {
+      return -1;
+    }
+    return (Number(leftValue) - Number(rightValue)) * directionFactor;
+  }
+
+  function matchesRange(actualValue, minimum, maximum) {
+    if (minimum === null && maximum === null) {
+      return true;
+    }
+    if (actualValue === null || actualValue === undefined) {
+      return false;
+    }
+    return (minimum === null || actualValue >= minimum)
+      && (maximum === null || actualValue <= maximum);
+  }
+
+  function matchesBooleanFilter(actualValue, filterValue) {
+    if (!filterValue) {
+      return true;
+    }
+    return actualValue === (filterValue === "true");
   }
 
   /* ========================================================
-     初期UI構築
+     素材データを表示行へ展開します。
+     装飾・彫刻・碑文は効果のTier行ごとに1行にするため、
+     MaterialInfoData / StatModGroupInfoData / StatModInfoDataの
+     全パラメータを列として欠落なく表示できます。
+     ======================================================== */
+  function buildMaterialRows(category) {
+    const rows = [];
+    for (const item of materialItems) {
+      const info = item.materialInfo;
+      if (!info || info.category !== category) {
+        continue;
+      }
+
+      if (!info.effects?.length) {
+        rows.push({
+          kind: "material",
+          item,
+          effect: null,
+          tier: null,
+          rowKey: `${item.key}-base`,
+        });
+        continue;
+      }
+
+      for (const [effectIndex, effect] of info.effects.entries()) {
+        if (!effect.tiers?.length) {
+          rows.push({
+            kind: "material",
+            item,
+            effect,
+            tier: null,
+            rowKey: `${item.key}-${effectIndex}-base`,
+          });
+          continue;
+        }
+
+        for (const tier of effect.tiers) {
+          rows.push({
+            kind: "material",
+            item,
+            effect,
+            tier,
+            rowKey: `${item.key}-${effectIndex}-${tier.tier}`,
+          });
+        }
+      }
+    }
+    return rows;
+  }
+
+  function buildGearResults() {
+    return gearItems.map((item) => ({
+      kind: "gear",
+      item,
+      rowKey: String(item.key),
+    }));
+  }
+
+  /* ========================================================
+     初期UI
      ======================================================== */
   function renderSummaryCards() {
-    const counts = new Map();
-    for (const item of items) {
-      counts.set(item.type, (counts.get(item.type) ?? 0) + 1);
-    }
-
-    const statSet = new Set();
-    const uniqueModSet = new Set();
-    for (const item of items) {
-      for (const stat of getAllStats(item)) {
-        statSet.add(stat.stat);
-      }
-
-      const hasUniqueMod = !!item.uniqueMod && item.uniqueMod !== NO_UNIQUE_MOD;
-      if (hasUniqueMod) {
-        uniqueModSet.add(item.uniqueMod);
-      }
+    const materialCounts = new Map();
+    for (const item of materialItems) {
+      const category = item.materialInfo?.category ?? "unknown";
+      materialCounts.set(category, (materialCounts.get(category) ?? 0) + 1);
     }
 
     const cards = [
-      ["全アイテム", items.length],
-      ["装備", counts.get("GEAR") ?? 0],
-      ["素材＋箱", (counts.get("MATERIAL") ?? 0) + (counts.get("STAGEBOX") ?? 0)],
-      ["能力 / ユニーク効果", `${statSet.size} / ${uniqueModSet.size}`],
+      ["装備", gearItems.length],
+      ["装飾", materialCounts.get("decoration") ?? 0],
+      ["彫刻 / 碑文", `${materialCounts.get("engraving") ?? 0} / ${materialCounts.get("inscription") ?? 0}`],
+      ["その他素材", materialCounts.get("material") ?? 0],
     ];
 
-    dom.summaryCards.innerHTML = cards
-      .map(([label, value]) => `
-        <article class="summary-card">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(typeof value === "number" ? formatNumber(value) : value)}</strong>
-        </article>
-      `)
-      .join("");
+    dom.summaryCards.innerHTML = cards.map(([label, value]) => `
+      <article class="summary-card">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(typeof value === "number" ? formatNumber(value) : value)}</strong>
+      </article>
+    `).join("");
   }
 
   function renderBasicFilterOptions() {
-    fillSelect(dom.itemType, meta.types ?? getDistinctValues("type"), getTypeLabel);
-    fillSelect(
-      dom.materialCategory,
-      Object.keys(MATERIAL_CATEGORY_LABELS),
-      getMaterialCategoryLabel,
-    );
     fillSelect(dom.itemClass, ["All", ...(meta.classes ?? [])], getClassLabel);
-    fillSelect(dom.parts, meta.parts ?? getDistinctValues("parts"), getPartLabel);
-    fillSelect(dom.gearType, meta.gearTypes ?? getDistinctValues("gearType"), getGearTypeLabel);
+    fillSelect(dom.parts, meta.parts ?? [], getPartLabel);
+    fillSelect(dom.gearType, meta.gearTypes ?? [], getGearTypeLabel);
+    fillSelect(dom.gearGroup, ["WEAPON", "ARMOR", "ACCESSORY"], getGearGroupLabel);
+    fillSelect(dom.materialTargetGroup, ["WEAPON", "ARMOR", "ACCESSORY", "COMMON"], getGearGroupLabel);
+    fillSelect(dom.materialMod, ["FLAT", "ADDITIVE", "MULTIPLICATIVE"], (value) => MOD_LABELS[value] ?? value);
+    fillSelect(dom.materialTypeDetail, ["CRAFTING", "OFFERING", "SOULSTONE"], getMaterialTypeLabel);
 
-    const gearGroups = getDistinctValues("gearGroup").sort();
-    fillSelect(dom.gearGroup, gearGroups, getGearGroupLabel);
-
-    const uniqueMods = getDistinctValues("uniqueMod")
-      .filter((value) => value !== NO_UNIQUE_MOD)
-      .sort((left, right) => getUniqueModLabel(left).localeCompare(getUniqueModLabel(right), "ja"));
+    const uniqueMods = Array.from(new Set(
+      gearItems
+        .map((item) => item.uniqueMod)
+        .filter((value) => !!value && value !== NO_UNIQUE_MOD),
+    )).sort((left, right) => getUniqueModLabel(left).localeCompare(getUniqueModLabel(right), "ja"));
 
     dom.uniqueMod.replaceChildren();
     dom.uniqueMod.append(createOption("", "すべて"));
@@ -433,122 +522,149 @@
     for (const uniqueMod of uniqueMods) {
       dom.uniqueMod.append(createOption(uniqueMod, getUniqueModLabel(uniqueMod)));
     }
+
+    renderMaterialStatOptions();
+    renderGearSortStatOptions();
   }
 
-  function renderSortStatOptions() {
-    dom.sortStat.replaceChildren();
-    dom.sortStat.append(createOption("", "能力を選択"));
+  function getAllGearStatCounts() {
+    const counts = new Map();
+    for (const item of gearItems) {
+      for (const stat of getAllStats(item)) {
+        counts.set(stat.stat, (counts.get(stat.stat) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries()).sort((left, right) => {
+      return getStatLabel(left[0]).localeCompare(getStatLabel(right[0]), "ja");
+    });
+  }
 
-    for (const [stat, count] of getAvailableStats()) {
-      const label = `${getStatLabel(stat)} (${count})`;
-      dom.sortStat.append(createOption(stat, label));
+  function renderGearSortStatOptions() {
+    const previousValue = dom.sortStat.value;
+    dom.sortStat.replaceChildren(createOption("", "能力を選択"));
+    for (const [stat, count] of getAllGearStatCounts()) {
+      dom.sortStat.append(createOption(stat, `${getStatLabel(stat)} (${count})`));
+    }
+    if (Array.from(dom.sortStat.options).some((option) => option.value === previousValue)) {
+      dom.sortStat.value = previousValue;
     }
   }
 
-  function updateStatSortControls() {
-    const isStatSort = dom.sortKey.value === "stat";
-    dom.statSortControls.hidden = !isStatSort;
-    dom.sortStatSource.disabled = !isStatSort;
-    dom.sortStat.disabled = !isStatSort;
-    dom.sortStatMod.disabled = !isStatSort;
+  function renderMaterialStatOptions(rows = buildMaterialRows(dom.materialCategory.value)) {
+    const previousValue = dom.materialStat.value;
+    const counts = new Map();
+    for (const row of rows) {
+      const stat = row.tier?.stat;
+      if (stat) {
+        counts.set(stat, (counts.get(stat) ?? 0) + 1);
+      }
+    }
+
+    dom.materialStat.replaceChildren(createOption("", "すべて"));
+    const entries = Array.from(counts.entries()).sort((left, right) => {
+      return getStatLabel(left[0]).localeCompare(getStatLabel(right[0]), "ja");
+    });
+    for (const [stat, count] of entries) {
+      dom.materialStat.append(createOption(stat, `${getStatLabel(stat)} (${count})`));
+    }
+    if (Array.from(dom.materialStat.options).some((option) => option.value === previousValue)) {
+      dom.materialStat.value = previousValue;
+    }
   }
 
   function renderGradeFilters() {
-    const grades = meta.grades ?? getDistinctValues("grade");
+    const grades = meta.grades ?? Array.from(new Set(items.map((item) => item.grade)));
     dom.gradeFilters.replaceChildren();
-
     for (const grade of grades) {
       const label = document.createElement("label");
       label.className = "chip";
-
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.value = grade;
-      checkbox.dataset.grade = grade;
-
       const text = document.createElement("span");
       text.textContent = getGradeLabel(grade);
-
       label.append(checkbox, text);
       dom.gradeFilters.append(label);
     }
   }
 
-  function getAvailableStats() {
-    const counts = new Map();
-    for (const item of items) {
-      for (const stat of getAllStats(item)) {
-        counts.set(stat.stat, (counts.get(stat.stat) ?? 0) + 1);
-      }
+  function renderSortOptions() {
+    const previousValue = dom.sortKey.value;
+    const options = isGearMode()
+      ? GEAR_SORT_OPTIONS
+      : isGenericMaterialMode()
+        ? MATERIAL_GENERIC_SORT_OPTIONS
+        : MATERIAL_EFFECT_SORT_OPTIONS;
+    dom.sortKey.replaceChildren();
+    for (const [value, label] of options) {
+      dom.sortKey.append(createOption(value, label));
     }
-
-    return Array.from(counts.entries()).sort((left, right) => {
-      const labelCompare = getStatLabel(left[0]).localeCompare(getStatLabel(right[0]), "ja");
-      return labelCompare || left[0].localeCompare(right[0]);
-    });
+    const canRestore = options.some(([value]) => value === previousValue);
+    dom.sortKey.value = canRestore ? previousValue : "grade";
+    updateStatSortControls();
   }
 
+  function updateModeVisibility() {
+    const gearMode = isGearMode();
+    const genericMaterialMode = isGenericMaterialMode();
+    setHidden(document.querySelectorAll(".gear-only"), !gearMode);
+    setHidden(document.querySelectorAll(".material-only"), gearMode);
+    setHidden(document.querySelectorAll(".material-effect-only"), gearMode || genericMaterialMode);
+    setHidden(document.querySelectorAll(".material-generic-only"), gearMode || !genericMaterialMode);
+    dom.materialCategoryField.hidden = gearMode;
+    renderSortOptions();
+    renderMaterialStatOptions();
+  }
+
+  function updateStatSortControls() {
+    const enabled = isGearMode() && dom.sortKey.value === "stat";
+    dom.statSortControls.hidden = !enabled;
+    for (const select of [dom.sortStatSource, dom.sortStat, dom.sortStatMod]) {
+      select.disabled = !enabled;
+    }
+  }
+
+  /* ========================================================
+     装備能力条件
+     ======================================================== */
   function updateStatFilterRow(row) {
     const statSelect = row.querySelector('[data-field="stat"]');
     const previousValue = statSelect.value;
-
-    statSelect.replaceChildren();
-    statSelect.append(createOption("", "能力を選択"));
-
-    for (const [stat, count] of getAvailableStats()) {
-      const label = `${getStatLabel(stat)} (${count})`;
-      statSelect.append(createOption(stat, label));
+    statSelect.replaceChildren(createOption("", "能力を選択"));
+    for (const [stat, count] of getAllGearStatCounts()) {
+      statSelect.append(createOption(stat, `${getStatLabel(stat)} (${count})`));
     }
-
-    const hasPreviousValue = Array.from(statSelect.options)
-      .some((option) => option.value === previousValue);
-    statSelect.value = hasPreviousValue ? previousValue : "";
+    if (Array.from(statSelect.options).some((option) => option.value === previousValue)) {
+      statSelect.value = previousValue;
+    }
   }
 
   function addStatFilter() {
     const currentCount = dom.statFilterList.querySelectorAll(".stat-filter-row").length;
-    const canAdd = currentCount < MAX_STAT_FILTERS;
-    if (!canAdd) {
+    if (currentCount >= MAX_STAT_FILTERS) {
       return;
     }
-
     state.statFilterSerial += 1;
     const fragment = dom.statFilterTemplate.content.cloneNode(true);
     const row = fragment.querySelector(".stat-filter-row");
     row.dataset.filterId = String(state.statFilterSerial);
     updateStatFilterRow(row);
-
     dom.statFilterList.append(fragment);
     updateAddStatFilterButton();
   }
 
   function updateAddStatFilterButton() {
-    const currentCount = dom.statFilterList.querySelectorAll(".stat-filter-row").length;
-    dom.addStatFilterButton.disabled = currentCount >= MAX_STAT_FILTERS;
-  }
-
-  /* ========================================================
-     フィルター値の取得
-     ======================================================== */
-  function getSelectedGrades() {
-    const selectedGrades = new Set();
-    const checkedInputs = dom.gradeFilters.querySelectorAll("input:checked");
-    for (const input of checkedInputs) {
-      selectedGrades.add(input.value);
-    }
-    return selectedGrades;
+    const count = dom.statFilterList.querySelectorAll(".stat-filter-row").length;
+    dom.addStatFilterButton.disabled = count >= MAX_STAT_FILTERS;
   }
 
   function getStatFilters() {
     const filters = [];
-    const rows = dom.statFilterList.querySelectorAll(".stat-filter-row");
-
-    for (const row of rows) {
+    for (const row of dom.statFilterList.querySelectorAll(".stat-filter-row")) {
       const stat = row.querySelector('[data-field="stat"]').value;
       if (!stat) {
         continue;
       }
-
       filters.push({
         source: row.querySelector('[data-field="source"]').value,
         stat,
@@ -557,52 +673,72 @@
         max: parseOptionalNumber(row.querySelector('[data-field="max"]').value),
       });
     }
-
     return filters;
+  }
+
+  function getSelectedGrades() {
+    return new Set(Array.from(dom.gradeFilters.querySelectorAll("input:checked"))
+      .map((input) => input.value));
   }
 
   function getFilters() {
     return {
       keyword: normalizeText(dom.keyword.value),
       itemKey: normalizeText(dom.itemKey.value),
-      type: dom.itemType.value,
-      materialCategory: dom.materialCategory.value,
+      grades: getSelectedGrades(),
+      obtainable: dom.obtainable.value,
+      tradable: dom.tradable.value,
+      goldMin: parseOptionalNumber(dom.goldMin.value),
+      goldMax: parseOptionalNumber(dom.goldMax.value),
+
       itemClass: dom.itemClass.value,
       parts: dom.parts.value,
       gearType: dom.gearType.value,
       gearGroup: dom.gearGroup.value,
       variant: dom.variant.value,
-      obtainable: dom.obtainable.value,
-      tradable: dom.tradable.value,
       levelMin: parseOptionalNumber(dom.levelMin.value),
       levelMax: parseOptionalNumber(dom.levelMax.value),
-      goldMin: parseOptionalNumber(dom.goldMin.value),
-      goldMax: parseOptionalNumber(dom.goldMax.value),
       decorationMin: parseOptionalNumber(dom.decorationMin.value),
       engravingMin: parseOptionalNumber(dom.engravingMin.value),
       inscriptionMin: parseOptionalNumber(dom.inscriptionMin.value),
       uniqueMod: dom.uniqueMod.value,
-      grades: getSelectedGrades(),
       includeAllClass: dom.includeAllClass.checked,
       statMatchMode: dom.statMatchMode.value,
       statFilters: getStatFilters(),
+
+      materialCategory: dom.materialCategory.value,
+      materialTargetGroup: dom.materialTargetGroup.value,
+      materialStat: dom.materialStat.value,
+      materialMod: dom.materialMod.value,
+      materialTierMin: parseOptionalNumber(dom.materialTierMin.value),
+      materialTierMax: parseOptionalNumber(dom.materialTierMax.value),
+      materialValueMin: parseOptionalNumber(dom.materialValueMin.value),
+      materialValueMax: parseOptionalNumber(dom.materialValueMax.value),
+      materialTypeDetail: dom.materialTypeDetail.value,
     };
   }
 
   /* ========================================================
      フィルター判定
      ======================================================== */
-  function matchesKeyword(item, keyword) {
+  function matchesCommonItem(item, filters) {
+    const matchesItemKey = !filters.itemKey || String(item.key).includes(filters.itemKey);
+    const matchesGrades = !filters.grades.size || filters.grades.has(item.grade);
+    return matchesItemKey
+      && matchesGrades
+      && matchesBooleanFilter(item.obtainable, filters.obtainable)
+      && matchesBooleanFilter(item.tradable, filters.tradable)
+      && matchesRange(item.gold, filters.goldMin, filters.goldMax);
+  }
+
+  function matchesGearKeyword(item, keyword) {
     if (!keyword) {
       return true;
     }
-
-    const searchableValues = [
+    const values = [
       item.key,
       getJapaneseName(item),
       item.name,
-      getTypeLabel(item.type),
-      getMaterialCategoryLabel(getMaterialCategory(item)),
       getGradeLabel(item.grade),
       getPartLabel(item.parts),
       getGearTypeLabel(item.gearType),
@@ -610,81 +746,32 @@
       getUniqueModLabel(item.uniqueMod),
       ...(item.classes ?? []).map(getClassLabel),
     ];
-
     for (const stat of getAllStats(item)) {
-      searchableValues.push(getStatLabel(stat.stat));
-      searchableValues.push(stat.stat);
-      searchableValues.push(MOD_LABELS[stat.mod] ?? stat.mod);
-      searchableValues.push(stat.disp);
+      values.push(stat.stat, getStatLabel(stat.stat), stat.mod, MOD_LABELS[stat.mod], stat.disp, stat.value);
     }
-
-    return searchableValues.some((value) => normalizeText(value).includes(keyword));
-  }
-
-  function matchesBooleanFilter(actualValue, filterValue) {
-    if (!filterValue) {
-      return true;
-    }
-
-    const expectedValue = filterValue === "true";
-    return actualValue === expectedValue;
-  }
-
-  function matchesRange(actualValue, minimum, maximum) {
-    if (minimum === null && maximum === null) {
-      return true;
-    }
-
-    const hasActualValue = actualValue !== null && actualValue !== undefined;
-    if (!hasActualValue) {
-      return false;
-    }
-
-    const isAboveMinimum = minimum === null || actualValue >= minimum;
-    const isBelowMaximum = maximum === null || actualValue <= maximum;
-    return isAboveMinimum && isBelowMaximum;
+    return values.some((value) => normalizeText(value).includes(keyword));
   }
 
   function matchesClass(item, itemClass, includeAllClass) {
     if (!itemClass) {
       return true;
     }
-
     const classes = item.classes ?? [];
-    if (classes.includes(itemClass)) {
-      return true;
-    }
-
-    const canMatchAllClass = includeAllClass && itemClass !== "All";
-    return canMatchAllClass && classes.includes("All");
-  }
-
-  function matchesVariant(item, variant) {
-    if (!variant) {
-      return true;
-    }
-
-    if (variant === "none") {
-      return !item.variant;
-    }
-
-    return item.variant === variant;
+    return classes.includes(itemClass)
+      || (includeAllClass && itemClass !== "All" && classes.includes("All"));
   }
 
   function matchesUniqueMod(item, uniqueMod) {
     if (!uniqueMod) {
       return true;
     }
-
     const hasUniqueMod = !!item.uniqueMod && item.uniqueMod !== NO_UNIQUE_MOD;
     if (uniqueMod === "__has__") {
       return hasUniqueMod;
     }
-
     if (uniqueMod === "__none__") {
       return !hasUniqueMod;
     }
-
     return item.uniqueMod === uniqueMod;
   }
 
@@ -692,417 +779,451 @@
     if (minimum === null) {
       return true;
     }
-
-    const actualValue = item.slots?.[slotName];
-    return actualValue !== null && actualValue !== undefined && actualValue >= minimum;
+    const actual = item.slots?.[slotName];
+    return actual !== null && actual !== undefined && actual >= minimum;
   }
 
   function matchesSingleStatFilter(item, filter) {
-    const itemStats = getAllStats(item);
-
-    return itemStats.some((stat) => {
-      const matchesSource = filter.source === "any" || stat.source === filter.source;
-      const matchesStat = stat.stat === filter.stat;
-      const matchesMod = !filter.mod || stat.mod === filter.mod;
-      const matchesValue = matchesRange(stat.value, filter.min, filter.max);
-
-      return matchesSource && matchesStat && matchesMod && matchesValue;
+    return getAllStats(item).some((stat) => {
+      return (filter.source === "any" || stat.source === filter.source)
+        && stat.stat === filter.stat
+        && (!filter.mod || stat.mod === filter.mod)
+        && matchesRange(Number(stat.value), filter.min, filter.max);
     });
   }
 
-  function matchesStatFilters(item, filters, matchMode) {
-    if (!filters.length) {
-      return true;
+  function matchesGearResult(result, filters, ignoredField = "") {
+    const item = result.item;
+    if (!matchesCommonItem(item, filters) || !matchesGearKeyword(item, filters.keyword)) {
+      return false;
     }
 
-    if (matchMode === "or") {
-      return filters.some((filter) => matchesSingleStatFilter(item, filter));
-    }
+    const variantMatches = !filters.variant
+      || (filters.variant === "none" ? !item.variant : item.variant === filters.variant);
+    const statMatches = !filters.statFilters.length
+      || (filters.statMatchMode === "or"
+        ? filters.statFilters.some((filter) => matchesSingleStatFilter(item, filter))
+        : filters.statFilters.every((filter) => matchesSingleStatFilter(item, filter)));
 
-    return filters.every((filter) => matchesSingleStatFilter(item, filter));
-  }
-
-  function matchesItem(item, filters, ignoredField = "") {
-    const matchesItemKey = !filters.itemKey || String(item.key).includes(filters.itemKey);
-    const matchesType = ignoredField === "type" || !filters.type || item.type === filters.type;
-    const matchesMaterialCategory = ignoredField === "materialCategory"
-      || !filters.materialCategory
-      || getMaterialCategory(item) === filters.materialCategory;
-    const matchesParts = ignoredField === "parts" || !filters.parts || item.parts === filters.parts;
-    const matchesGearType = ignoredField === "gearType"
-      || !filters.gearType
-      || item.gearType === filters.gearType;
-    const matchesGearGroup = ignoredField === "gearGroup"
-      || !filters.gearGroup
-      || item.gearGroup === filters.gearGroup;
-    const matchesGrades = !filters.grades.size || filters.grades.has(item.grade);
-    const matchesItemClass = ignoredField === "itemClass"
-      || matchesClass(item, filters.itemClass, filters.includeAllClass);
-    const matchesItemVariant = ignoredField === "variant"
-      || matchesVariant(item, filters.variant);
-    const matchesObtainable = ignoredField === "obtainable"
-      || matchesBooleanFilter(item.obtainable, filters.obtainable);
-    const matchesTradable = ignoredField === "tradable"
-      || matchesBooleanFilter(item.tradable, filters.tradable);
-    const matchesItemUniqueMod = ignoredField === "uniqueMod"
-      || matchesUniqueMod(item, filters.uniqueMod);
-
-    return (
-      matchesKeyword(item, filters.keyword)
-      && matchesItemKey
-      && matchesType
-      && matchesMaterialCategory
-      && matchesItemClass
-      && matchesParts
-      && matchesGearType
-      && matchesGearGroup
-      && matchesItemVariant
-      && matchesObtainable
-      && matchesTradable
+    return (ignoredField === "itemClass" || matchesClass(item, filters.itemClass, filters.includeAllClass))
+      && (ignoredField === "parts" || !filters.parts || item.parts === filters.parts)
+      && (ignoredField === "gearType" || !filters.gearType || item.gearType === filters.gearType)
+      && (ignoredField === "gearGroup" || !filters.gearGroup || item.gearGroup === filters.gearGroup)
+      && (ignoredField === "variant" || variantMatches)
       && matchesRange(item.level, filters.levelMin, filters.levelMax)
-      && matchesRange(item.gold, filters.goldMin, filters.goldMax)
       && matchesSlotMinimum(item, "decoration", filters.decorationMin)
       && matchesSlotMinimum(item, "engraving", filters.engravingMin)
       && matchesSlotMinimum(item, "inscription", filters.inscriptionMin)
-      && matchesItemUniqueMod
-      && matchesGrades
-      && matchesStatFilters(item, filters.statFilters, filters.statMatchMode)
-    );
+      && (ignoredField === "uniqueMod" || matchesUniqueMod(item, filters.uniqueMod))
+      && statMatches;
+  }
+
+  function matchesMaterialKeyword(result, keyword) {
+    if (!keyword) {
+      return true;
+    }
+    const item = result.item;
+    const info = item.materialInfo;
+    const values = [
+      item.key,
+      getJapaneseName(item),
+      item.name,
+      getGradeLabel(item.grade),
+      getMaterialTypeLabel(info?.materialType),
+      info?.statModGroupKey,
+      result.effect?.gearGroup,
+      getGearGroupLabel(result.effect?.gearGroup),
+      result.effect?.statModKey,
+      result.effect?.minTier,
+      result.effect?.maxTier,
+      result.tier?.tier,
+      result.tier?.stat,
+      getStatLabel(result.tier?.stat),
+      result.tier?.mod,
+      MOD_LABELS[result.tier?.mod],
+      result.tier?.minValue,
+      result.tier?.maxValue,
+      result.tier?.interval,
+    ];
+    return values.some((value) => normalizeText(value).includes(keyword));
+  }
+
+  function matchesMaterialResult(result, filters, ignoredField = "") {
+    const item = result.item;
+    const info = item.materialInfo;
+    if (!matchesCommonItem(item, filters) || !matchesMaterialKeyword(result, filters.keyword)) {
+      return false;
+    }
+
+    const tier = result.tier;
+    return (ignoredField === "materialTypeDetail"
+        || !filters.materialTypeDetail
+        || info?.materialType === filters.materialTypeDetail)
+      && (ignoredField === "materialTargetGroup"
+        || !filters.materialTargetGroup
+        || result.effect?.gearGroup === filters.materialTargetGroup)
+      && (ignoredField === "materialStat"
+        || !filters.materialStat
+        || tier?.stat === filters.materialStat)
+      && (ignoredField === "materialMod"
+        || !filters.materialMod
+        || tier?.mod === filters.materialMod)
+      && matchesRange(tier?.tier, filters.materialTierMin, filters.materialTierMax)
+      && matchesRange(tier?.minValue, filters.materialValueMin, null)
+      && matchesRange(tier?.maxValue, null, filters.materialValueMax);
   }
 
   /* ========================================================
-     現在の条件で到達できない候補を各プルダウンから除外します。
-     自分自身の条件だけを外して候補を算出するため、選び直しも可能です。
+     動的プルダウン
      ======================================================== */
   function replaceDynamicOptions(select, optionSpecs, allLabel = "すべて") {
     const selectedValue = select.value;
-    const selectedOption = Array.from(select.options)
-      .find((option) => option.value === selectedValue);
-    const selectedLabel = selectedOption?.textContent ?? selectedValue;
-
-    select.replaceChildren();
-    select.append(createOption("", allLabel));
-
+    select.replaceChildren(createOption("", allLabel));
     for (const optionSpec of optionSpecs) {
       select.append(createOption(optionSpec.value, optionSpec.label));
     }
-
-    const hasSelectedValue = Array.from(select.options)
+    const canKeepSelection = Array.from(select.options)
       .some((option) => option.value === selectedValue);
-
-    if (selectedValue && !hasSelectedValue) {
-      select.append(createOption(selectedValue, selectedLabel));
-    }
-
-    select.value = selectedValue;
+    select.value = canKeepSelection ? selectedValue : "";
+    return selectedValue !== select.value;
   }
 
-  function buildFacetOptions(targetItems, valueGetter, labelGetter) {
+  function buildFacetOptions(results, valueGetter, labelGetter) {
     const values = new Set();
-
-    for (const item of targetItems) {
-      const rawValues = valueGetter(item);
-      const itemValues = Array.isArray(rawValues) ? rawValues : [rawValues];
-
-      for (const value of itemValues) {
-        const hasValue = value !== null && value !== undefined && value !== "";
-        if (hasValue) {
+    for (const result of results) {
+      const raw = valueGetter(result);
+      const array = Array.isArray(raw) ? raw : [raw];
+      for (const value of array) {
+        if (value !== null && value !== undefined && value !== "") {
           values.add(String(value));
         }
       }
     }
-
     return Array.from(values)
       .map((value) => ({ value, label: labelGetter(value) }))
       .sort((left, right) => left.label.localeCompare(right.label, "ja"));
   }
 
-  function getFacetItems(filters, ignoredField) {
-    return items.filter((item) => matchesItem(item, filters, ignoredField));
-  }
+  function refreshGearOptions(filters) {
+    const base = buildGearResults();
+    const facet = (field) => base.filter((result) => matchesGearResult(result, filters, field));
+    let changed = false;
 
-  function refreshDynamicFilterOptions(filters) {
-    const typeItems = getFacetItems(filters, "type");
-    replaceDynamicOptions(
-      dom.itemType,
-      buildFacetOptions(typeItems, (item) => item.type, getTypeLabel),
-    );
+    changed = replaceDynamicOptions(dom.itemClass, buildFacetOptions(
+      facet("itemClass"),
+      (result) => result.item.classes ?? [],
+      getClassLabel,
+    )) || changed;
+    changed = replaceDynamicOptions(dom.parts, buildFacetOptions(
+      facet("parts"),
+      (result) => result.item.parts,
+      getPartLabel,
+    )) || changed;
+    changed = replaceDynamicOptions(dom.gearType, buildFacetOptions(
+      facet("gearType"),
+      (result) => result.item.gearType,
+      getGearTypeLabel,
+    )) || changed;
+    changed = replaceDynamicOptions(dom.gearGroup, buildFacetOptions(
+      facet("gearGroup"),
+      (result) => result.item.gearGroup,
+      getGearGroupLabel,
+    )) || changed;
+    changed = replaceDynamicOptions(dom.variant, buildFacetOptions(
+      facet("variant"),
+      (result) => result.item.variant ?? "none",
+      (value) => value === "none" ? "なし" : value,
+    )) || changed;
 
-    const materialCategoryItems = getFacetItems(filters, "materialCategory");
-    replaceDynamicOptions(
-      dom.materialCategory,
-      buildFacetOptions(
-        materialCategoryItems,
-        getMaterialCategory,
-        getMaterialCategoryLabel,
-      ),
-    );
-
-    const classItems = getFacetItems(filters, "itemClass");
-    replaceDynamicOptions(
-      dom.itemClass,
-      buildFacetOptions(classItems, (item) => item.classes ?? [], getClassLabel),
-    );
-
-    const partsItems = getFacetItems(filters, "parts");
-    replaceDynamicOptions(
-      dom.parts,
-      buildFacetOptions(partsItems, (item) => item.parts, getPartLabel),
-    );
-
-    const gearTypeItems = getFacetItems(filters, "gearType");
-    replaceDynamicOptions(
-      dom.gearType,
-      buildFacetOptions(gearTypeItems, (item) => item.gearType, getGearTypeLabel),
-    );
-
-    const gearGroupItems = getFacetItems(filters, "gearGroup");
-    replaceDynamicOptions(
-      dom.gearGroup,
-      buildFacetOptions(gearGroupItems, (item) => item.gearGroup, getGearGroupLabel),
-    );
-
-    const variantItems = getFacetItems(filters, "variant");
-    replaceDynamicOptions(
-      dom.variant,
-      buildFacetOptions(
-        variantItems,
-        (item) => item.variant ?? "none",
-        (value) => value === "none" ? "なし" : value,
-      ),
-    );
-
-    const obtainableItems = getFacetItems(filters, "obtainable");
-    replaceDynamicOptions(
-      dom.obtainable,
-      buildFacetOptions(
-        obtainableItems,
-        (item) => String(item.obtainable),
-        (value) => value === "true" ? "入手可能" : "入手不可",
-      ),
-    );
-
-    const tradableItems = getFacetItems(filters, "tradable");
-    replaceDynamicOptions(
-      dom.tradable,
-      buildFacetOptions(
-        tradableItems,
-        (item) => String(item.tradable),
-        (value) => value === "true" ? "取引可能" : "取引不可",
-      ),
-    );
-
-    const uniqueItems = getFacetItems(filters, "uniqueMod");
-    const hasUniqueItem = uniqueItems.some((item) => {
-      return !!item.uniqueMod && item.uniqueMod !== NO_UNIQUE_MOD;
-    });
-    const hasNonUniqueItem = uniqueItems.some((item) => {
-      return !item.uniqueMod || item.uniqueMod === NO_UNIQUE_MOD;
-    });
-    const uniqueOptions = [];
-
-    if (hasUniqueItem) {
-      uniqueOptions.push({ value: "__has__", label: "ユニーク効果あり" });
+    const uniqueResults = facet("uniqueMod");
+    const options = [];
+    if (uniqueResults.some((result) => !!result.item.uniqueMod && result.item.uniqueMod !== NO_UNIQUE_MOD)) {
+      options.push({ value: "__has__", label: "ユニーク効果あり" });
     }
-
-    if (hasNonUniqueItem) {
-      uniqueOptions.push({ value: "__none__", label: "ユニーク効果なし" });
+    if (uniqueResults.some((result) => !result.item.uniqueMod || result.item.uniqueMod === NO_UNIQUE_MOD)) {
+      options.push({ value: "__none__", label: "ユニーク効果なし" });
     }
-
-    uniqueOptions.push(...buildFacetOptions(
-      uniqueItems.filter((item) => !!item.uniqueMod && item.uniqueMod !== NO_UNIQUE_MOD),
-      (item) => item.uniqueMod,
+    options.push(...buildFacetOptions(
+      uniqueResults.filter((result) => !!result.item.uniqueMod && result.item.uniqueMod !== NO_UNIQUE_MOD),
+      (result) => result.item.uniqueMod,
       getUniqueModLabel,
     ));
-    replaceDynamicOptions(dom.uniqueMod, uniqueOptions);
+    changed = replaceDynamicOptions(dom.uniqueMod, options) || changed;
+    return changed;
+  }
+
+  function refreshMaterialOptions(filters) {
+    const base = buildMaterialRows(filters.materialCategory);
+    const facet = (field) => base.filter((result) => matchesMaterialResult(result, filters, field));
+    let changed = false;
+
+    changed = replaceDynamicOptions(dom.materialTargetGroup, buildFacetOptions(
+      facet("materialTargetGroup"),
+      (result) => result.effect?.gearGroup,
+      getGearGroupLabel,
+    )) || changed;
+    changed = replaceDynamicOptions(dom.materialStat, buildFacetOptions(
+      facet("materialStat"),
+      (result) => result.tier?.stat,
+      getStatLabel,
+    )) || changed;
+    changed = replaceDynamicOptions(dom.materialMod, buildFacetOptions(
+      facet("materialMod"),
+      (result) => result.tier?.mod,
+      (value) => MOD_LABELS[value] ?? value,
+    )) || changed;
+    changed = replaceDynamicOptions(dom.materialTypeDetail, buildFacetOptions(
+      facet("materialTypeDetail"),
+      (result) => result.item.materialInfo?.materialType,
+      getMaterialTypeLabel,
+    )) || changed;
+    return changed;
+  }
+
+  function refreshCommonBooleanOptions(filters, sourceResults) {
+    const matching = sourceResults.filter((result) => {
+      return isGearMode()
+        ? matchesGearResult(result, { ...filters, obtainable: "", tradable: "" })
+        : matchesMaterialResult(result, { ...filters, obtainable: "", tradable: "" });
+    });
+    let changed = false;
+    changed = replaceDynamicOptions(dom.obtainable, buildFacetOptions(
+      matching,
+      (result) => String(result.item.obtainable),
+      (value) => value === "true" ? "入手可能" : "入手不可",
+    )) || changed;
+    changed = replaceDynamicOptions(dom.tradable, buildFacetOptions(
+      matching,
+      (result) => String(result.item.tradable),
+      (value) => value === "true" ? "取引可能" : "取引不可",
+    )) || changed;
+    return changed;
   }
 
   /* ========================================================
      並び替え
      ======================================================== */
-  function getStatSortValue(item) {
+  function getGearStatSortValue(item) {
     const selectedStat = dom.sortStat.value;
     if (!selectedStat) {
       return null;
     }
-
     const source = dom.sortStatSource.value;
     const mod = dom.sortStatMod.value;
     const values = getAllStats(item)
-      .filter((stat) => {
-        const matchesSource = source === "any" || stat.source === source;
-        const matchesStat = stat.stat === selectedStat;
-        const matchesMod = !mod || stat.mod === mod;
-        return matchesSource && matchesStat && matchesMod;
-      })
+      .filter((stat) => (source === "any" || stat.source === source)
+        && stat.stat === selectedStat
+        && (!mod || stat.mod === mod))
       .map((stat) => Number(stat.value))
-      .filter((value) => Number.isFinite(value));
-
-    if (!values.length) {
-      return null;
-    }
-
-    return Math.max(...values);
+      .filter(Number.isFinite);
+    return values.length ? Math.max(...values) : null;
   }
 
-  function compareOptionalNumbers(leftValue, rightValue, directionFactor) {
-    const hasLeftValue = leftValue !== null && leftValue !== undefined;
-    const hasRightValue = rightValue !== null && rightValue !== undefined;
-
-    if (!hasLeftValue && !hasRightValue) {
-      return 0;
-    }
-
-    if (!hasLeftValue) {
-      return 1;
-    }
-
-    if (!hasRightValue) {
-      return -1;
-    }
-
-    return (leftValue - rightValue) * directionFactor;
-  }
-
-  function sortItems(targetItems) {
-    const sortKey = dom.sortKey.value;
-    const directionFactor = dom.sortDirection.value === "desc" ? -1 : 1;
-
-    targetItems.sort((left, right) => {
+  function sortResults(results) {
+    const key = dom.sortKey.value;
+    const factor = dom.sortDirection.value === "desc" ? -1 : 1;
+    results.sort((left, right) => {
+      const leftItem = left.item;
+      const rightItem = right.item;
       let comparison = 0;
 
-      if (sortKey === "grade") {
-        comparison = compareOptionalNumbers(left.gradeRank, right.gradeRank, directionFactor);
-        if (!comparison) {
-          comparison = compareOptionalNumbers(left.level, right.level, directionFactor);
-        }
-      } else if (sortKey === "level") {
-        comparison = compareOptionalNumbers(left.level, right.level, directionFactor);
-        if (!comparison) {
-          comparison = compareOptionalNumbers(left.gradeRank, right.gradeRank, directionFactor);
-        }
-      } else if (sortKey === "name") {
-        comparison = getJapaneseName(left).localeCompare(getJapaneseName(right), "ja") * directionFactor;
-      } else if (sortKey === "gold") {
-        comparison = compareOptionalNumbers(left.gold, right.gold, directionFactor);
-      } else if (sortKey === "stat") {
-        const leftStatValue = getStatSortValue(left);
-        const rightStatValue = getStatSortValue(right);
-        comparison = compareOptionalNumbers(leftStatValue, rightStatValue, directionFactor);
+      if (key === "grade") {
+        comparison = compareOptionalNumbers(leftItem.gradeRank, rightItem.gradeRank, factor);
+      } else if (key === "level") {
+        comparison = compareOptionalNumbers(leftItem.level, rightItem.level, factor);
+      } else if (key === "name") {
+        comparison = getJapaneseName(leftItem).localeCompare(getJapaneseName(rightItem), "ja") * factor;
+      } else if (key === "gold") {
+        comparison = compareOptionalNumbers(leftItem.gold, rightItem.gold, factor);
+      } else if (key === "stat") {
+        comparison = compareOptionalNumbers(getGearStatSortValue(leftItem), getGearStatSortValue(rightItem), factor);
+      } else if (key === "material-type") {
+        comparison = getMaterialTypeLabel(leftItem.materialInfo?.materialType)
+          .localeCompare(getMaterialTypeLabel(rightItem.materialInfo?.materialType), "ja") * factor;
+      } else if (key === "target") {
+        comparison = getGearGroupLabel(left.effect?.gearGroup)
+          .localeCompare(getGearGroupLabel(right.effect?.gearGroup), "ja") * factor;
+      } else if (key === "material-stat") {
+        comparison = getStatLabel(left.tier?.stat)
+          .localeCompare(getStatLabel(right.tier?.stat), "ja") * factor;
+      } else if (key === "tier") {
+        comparison = compareOptionalNumbers(left.tier?.tier, right.tier?.tier, factor);
+      } else if (key === "min-value") {
+        comparison = compareOptionalNumbers(left.tier?.minValue, right.tier?.minValue, factor);
+      } else if (key === "max-value") {
+        comparison = compareOptionalNumbers(left.tier?.maxValue, right.tier?.maxValue, factor);
+      } else if (key === "interval") {
+        comparison = compareOptionalNumbers(left.tier?.interval, right.tier?.interval, factor);
       } else {
-        comparison = (Number(left.key) - Number(right.key)) * directionFactor;
+        comparison = (Number(leftItem.key) - Number(rightItem.key)) * factor;
       }
 
       if (!comparison) {
-        comparison = Number(left.key) - Number(right.key);
+        comparison = Number(leftItem.key) - Number(rightItem.key);
       }
-
+      if (!comparison) {
+        comparison = String(left.rowKey).localeCompare(String(right.rowKey));
+      }
       return comparison;
     });
   }
 
   /* ========================================================
-     結果表示
+     表示列
      ======================================================== */
-  function renderStats(item) {
+  function renderGearStats(item) {
     const stats = getAllStats(item);
     if (!stats.length) {
       return EMPTY_LABEL;
     }
-
-    return `
-      <div class="stat-list">
-        ${stats.map((stat) => {
-          const sourceLabel = stat.source === "base" ? "基本" : "固有";
-          const displayValue = stat.disp || formatNumber(stat.value);
-          const title = `${sourceLabel} / ${MOD_LABELS[stat.mod] ?? stat.mod} / raw: ${stat.value}`;
-          return `<span class="stat-badge" title="${escapeHtml(title)}">${escapeHtml(getStatLabel(stat.stat))} ${escapeHtml(displayValue)}</span>`;
-        }).join("")}
-      </div>
-    `;
+    return `<div class="stat-list">${stats.map((stat) => {
+      const sourceLabel = stat.source === "base" ? "基本" : "固有";
+      const displayValue = stat.disp || formatNumber(stat.value);
+      const title = `${sourceLabel} / ${MOD_LABELS[stat.mod] ?? stat.mod} / raw: ${stat.value}`;
+      return `<span class="stat-badge" title="${escapeHtml(title)}">${escapeHtml(getStatLabel(stat.stat))} ${escapeHtml(displayValue)}</span>`;
+    }).join("")}</div>`;
   }
 
   function renderStatus(item) {
-    const obtainableClass = item.obtainable ? "status-yes" : "status-no";
-    const tradableClass = item.tradable ? "status-yes" : "status-no";
-
-    return `
-      <div class="badge-list">
-        <span class="badge ${obtainableClass}">${item.obtainable ? "入手可" : "入手不可"}</span>
-        <span class="badge ${tradableClass}">${item.tradable ? "取引可" : "取引不可"}</span>
-      </div>
-    `;
+    return `<div class="badge-list">
+      <span class="badge ${item.obtainable ? "status-yes" : "status-no"}">${item.obtainable ? "入手可" : "入手不可"}</span>
+      <span class="badge ${item.tradable ? "status-yes" : "status-no"}">${item.tradable ? "取引可" : "取引不可"}</span>
+    </div>`;
   }
 
-  function renderRows(pageItems) {
-    if (!pageItems.length) {
-      dom.resultBody.innerHTML = `
-        <tr>
-          <td colspan="11">条件に一致するアイテムがありません。</td>
-        </tr>
-      `;
-      return;
+  function getGearColumns(oneScreen = false) {
+    const columns = [
+      { key: "item-key", label: "ID", text: (r) => r.item.key },
+      { key: "name", label: "名称", text: (r) => getJapaneseName(r.item), html: (r) => `<div class="name-cell"><strong>${escapeHtml(getJapaneseName(r.item))}</strong><span>${escapeHtml(r.item.name ?? EMPTY_LABEL)}</span></div>` },
+      { key: "grade", label: "レアリティ", text: (r) => getGradeLabel(r.item.grade), html: (r) => `<span class="badge grade-badge">${escapeHtml(getGradeLabel(r.item.grade))}</span>` },
+      { key: "level", label: "Lv", text: (r) => formatNumber(r.item.level) },
+      { key: "class", label: "クラス", text: (r) => (r.item.classes ?? []).map(getClassLabel).join(" / ") || EMPTY_LABEL },
+      { key: "equipment", label: "装備分類", text: (r) => getGearTypeLabel(r.item.gearType) },
+      { key: "stats", label: "能力", text: (r) => getAllStats(r.item).map((s) => `${getStatLabel(s.stat)} ${s.disp || formatNumber(s.value)}`).join(" / ") || EMPTY_LABEL, html: (r) => renderGearStats(r.item) },
+      { key: "unique", label: "ユニーク能力", text: (r) => getUniqueModLabel(r.item.uniqueMod) },
+      { key: "gold", label: "ゴールド", text: (r) => formatNumber(r.item.gold) },
+      { key: "status", label: "状態", text: (r) => `${r.item.obtainable ? "入手可" : "入手不可"} / ${r.item.tradable ? "取引可" : "取引不可"}`, html: (r) => renderStatus(r.item) },
+    ];
+    if (!oneScreen) {
+      return columns;
+    }
+    const allowed = new Set(["name", "grade", "level", "class", "equipment", "stats", "unique"]);
+    return columns.filter((column) => allowed.has(column.key));
+  }
+
+  function getMaterialColumns(oneScreen = false) {
+    const generic = isGenericMaterialMode();
+    const common = [
+      { key: "item-key", label: "ID", text: (r) => r.item.key },
+      { key: "name", label: "名称", text: (r) => getJapaneseName(r.item), html: (r) => `<div class="name-cell"><strong>${escapeHtml(getJapaneseName(r.item))}</strong><span>${escapeHtml(r.item.name ?? EMPTY_LABEL)}</span></div>` },
+      { key: "grade", label: "レアリティ", text: (r) => getGradeLabel(r.item.grade), html: (r) => `<span class="badge grade-badge">${escapeHtml(getGradeLabel(r.item.grade))}</span>` },
+      { key: "material-type", label: "素材種別", text: (r) => getMaterialTypeLabel(r.item.materialInfo?.materialType) },
+    ];
+
+    if (generic) {
+      const columns = [
+        ...common,
+        { key: "gold", label: "ゴールド", text: (r) => formatNumber(r.item.gold) },
+        { key: "status", label: "状態", text: (r) => `${r.item.obtainable ? "入手可" : "入手不可"} / ${r.item.tradable ? "取引可" : "取引不可"}`, html: (r) => renderStatus(r.item) },
+      ];
+      return oneScreen ? columns.filter((column) => column.key !== "item-key") : columns;
     }
 
-    dom.resultBody.innerHTML = pageItems.map((item) => {
-      const classLabels = (item.classes ?? []).map(getClassLabel).join(" / ") || EMPTY_LABEL;
-      const equipmentLabels = getGearTypeLabel(item.gearType);
+    const columns = [
+      ...common,
+      { key: "group-key", label: "StatModGroupKey", text: (r) => formatNumber(r.item.materialInfo?.statModGroupKey) },
+      { key: "target", label: "対象装備分類", text: (r) => getGearGroupLabel(r.effect?.gearGroup) },
+      { key: "stat-mod-key", label: "StatModKey", text: (r) => formatNumber(r.effect?.statModKey) },
+      { key: "tier-range", label: "適用Tier範囲", text: (r) => r.effect ? `${r.effect.minTier}〜${r.effect.maxTier}` : EMPTY_LABEL },
+      { key: "tier", label: "データTier", text: (r) => formatNumber(r.tier?.tier) },
+      { key: "stat", label: "能力", text: (r) => getStatLabel(r.tier?.stat) },
+      { key: "mod", label: "計算方式", text: (r) => MOD_LABELS[r.tier?.mod] ?? r.tier?.mod ?? EMPTY_LABEL },
+      { key: "min-value", label: "最小値(raw)", text: (r) => formatNumber(r.tier?.minValue) },
+      { key: "max-value", label: "最大値(raw)", text: (r) => formatNumber(r.tier?.maxValue) },
+      { key: "interval", label: "刻み(raw)", text: (r) => formatNumber(r.tier?.interval) },
+      { key: "gold", label: "ゴールド", text: (r) => formatNumber(r.item.gold) },
+      { key: "status", label: "状態", text: (r) => `${r.item.obtainable ? "入手可" : "入手不可"} / ${r.item.tradable ? "取引可" : "取引不可"}`, html: (r) => renderStatus(r.item) },
+    ];
+    if (!oneScreen) {
+      return columns;
+    }
+    const allowed = new Set(["name", "grade", "target", "stat", "mod", "tier", "min-value", "max-value", "interval"]);
+    return columns.filter((column) => allowed.has(column.key));
+  }
 
-      return `
-        <tr tabindex="0" data-item-key="${escapeHtml(item.key)}" aria-label="${escapeHtml(getJapaneseName(item))}の詳細を開く">
-          <td data-column="item-key">${escapeHtml(item.key)}</td>
-          <td class="name-cell" data-column="name">
-            <strong>${escapeHtml(getJapaneseName(item))}</strong>
-            <span>${escapeHtml(item.name ?? EMPTY_LABEL)}</span>
-          </td>
-          <td data-column="item-type">${escapeHtml(getTypeLabel(item.type))}</td>
-          <td data-column="grade"><span class="badge grade-badge">${escapeHtml(getGradeLabel(item.grade))}</span></td>
-          <td data-column="level">${escapeHtml(formatNumber(item.level))}</td>
-          <td data-column="class">${escapeHtml(classLabels)}</td>
-          <td data-column="equipment">${escapeHtml(equipmentLabels)}</td>
-          <td data-column="stats">${renderStats(item)}</td>
-          <td data-column="unique-mod">${escapeHtml(getUniqueModLabel(item.uniqueMod))}</td>
-          <td data-column="gold">${escapeHtml(formatNumber(item.gold))}</td>
-          <td data-column="status">${renderStatus(item)}</td>
-        </tr>
-      `;
-    }).join("");
+  function getCurrentColumns(oneScreen = false) {
+    return isGearMode() ? getGearColumns(oneScreen) : getMaterialColumns(oneScreen);
+  }
+
+  function renderTableHead() {
+    const columns = getCurrentColumns();
+    dom.resultHead.innerHTML = `<tr>${columns.map((column) => `<th data-column="${escapeHtml(column.key)}">${escapeHtml(column.label)}</th>`).join("")}</tr>`;
+    dom.resultTable.classList.toggle("material-result-table", !isGearMode());
+  }
+
+  function renderRows(pageResults) {
+    const columns = getCurrentColumns();
+    if (!pageResults.length) {
+      dom.resultBody.innerHTML = `<tr><td colspan="${columns.length}">条件に一致するデータがありません。</td></tr>`;
+      return;
+    }
+    dom.resultBody.innerHTML = pageResults.map((result) => `
+      <tr tabindex="0" data-item-key="${escapeHtml(result.item.key)}" data-row-key="${escapeHtml(result.rowKey)}" aria-label="${escapeHtml(getJapaneseName(result.item))}の詳細を開く">
+        ${columns.map((column) => {
+          const content = column.html ? column.html(result) : escapeHtml(column.text(result));
+          return `<td data-column="${escapeHtml(column.key)}">${content}</td>`;
+        }).join("")}
+      </tr>
+    `).join("");
   }
 
   function renderPagination() {
-    const totalPages = Math.max(1, Math.ceil(state.filteredItems.length / state.pageSize));
-    if (state.currentPage > totalPages) {
-      state.currentPage = totalPages;
-    }
-
-    const pageStart = (state.currentPage - 1) * state.pageSize;
-    const pageEnd = pageStart + state.pageSize;
-    const pageItems = state.filteredItems.slice(pageStart, pageEnd);
-
-    renderRows(pageItems);
-
+    const totalPages = Math.max(1, Math.ceil(state.results.length / state.pageSize));
+    state.currentPage = Math.min(state.currentPage, totalPages);
+    const start = (state.currentPage - 1) * state.pageSize;
+    const end = start + state.pageSize;
+    renderRows(state.results.slice(start, end));
     dom.pageStatus.textContent = `${state.currentPage} / ${totalPages}`;
     dom.previousPageButton.disabled = state.currentPage <= 1;
     dom.nextPageButton.disabled = state.currentPage >= totalPages;
+    const visibleStart = state.results.length ? start + 1 : 0;
+    const visibleEnd = Math.min(end, state.results.length);
+    dom.resultNote.textContent = `${visibleStart}〜${visibleEnd}行を表示`;
+  }
 
-    const visibleStart = state.filteredItems.length ? pageStart + 1 : 0;
-    const visibleEnd = Math.min(pageEnd, state.filteredItems.length);
-    dom.resultNote.textContent = `${visibleStart}〜${visibleEnd}件を表示`;
+  function updateResultCount() {
+    if (isGearMode() || isGenericMaterialMode()) {
+      dom.resultCount.textContent = `${state.results.length.toLocaleString("ja-JP")}件`;
+      return;
+    }
+    const uniqueItems = new Set(state.results.map((result) => result.item.key)).size;
+    dom.resultCount.textContent = `${uniqueItems.toLocaleString("ja-JP")}アイテム / ${state.results.length.toLocaleString("ja-JP")}効果行`;
   }
 
   function applyFilters(options = {}) {
-    const shouldResetPage = options.resetPage !== false;
-    if (shouldResetPage) {
+    if (options.resetPage !== false) {
       state.currentPage = 1;
     }
-
     const filters = getFilters();
-    state.filteredItems = items.filter((item) => matchesItem(item, filters));
-    sortItems(state.filteredItems);
-    refreshDynamicFilterOptions(filters);
-
-    dom.resultCount.textContent = `${state.filteredItems.length.toLocaleString("ja-JP")}件`;
+    const source = isGearMode() ? buildGearResults() : buildMaterialRows(filters.materialCategory);
+    state.results = source.filter((result) => {
+      return isGearMode()
+        ? matchesGearResult(result, filters)
+        : matchesMaterialResult(result, filters);
+    });
+    sortResults(state.results);
+    renderTableHead();
+    updateResultCount();
     renderPagination();
+
+    const modeOptionsChanged = isGearMode()
+      ? refreshGearOptions(filters)
+      : refreshMaterialOptions(filters);
+    const commonOptionsChanged = refreshCommonBooleanOptions(filters, source);
+
+    if (!options.optionsAdjusted && (modeOptionsChanged || commonOptionsChanged)) {
+      applyFilters({ resetPage: false, optionsAdjusted: true });
+    }
   }
 
   /* ========================================================
@@ -1114,287 +1235,114 @@
   const ONE_SCREEN_TABLE_GAP = 8;
   const ONE_SCREEN_MAX_BLOCKS = 32;
 
-  const ONE_SCREEN_COLUMN_KEYS = [
-    "name",
-    "grade",
-    "level",
-    "item-class",
-    "equipment",
-    "stats",
-    "unique",
-  ];
-
-  const ONE_SCREEN_COLUMN_HEADERS = {
-    name: "名称",
-    grade: "レアリティ",
-    level: "Lv",
-    "item-class": "クラス",
-    equipment: "装備分類",
-    stats: "能力",
-    unique: "ユニーク能力",
-  };
-
-  function renderOneScreenStats(item) {
-    const stats = getAllStats(item);
-    if (!stats.length) {
-      return EMPTY_LABEL;
-    }
-
-    return stats
-      .map((stat) => `${getStatLabel(stat.stat)} ${stat.disp || formatNumber(stat.value)}`)
-      .join(" / ");
-  }
-
-  function getOneScreenValues(item) {
-    return {
-      name: getJapaneseName(item),
-      grade: getGradeLabel(item.grade),
-      level: formatNumber(item.level),
-      "item-class": (item.classes ?? []).map(getClassLabel).join(" / ") || EMPTY_LABEL,
-      equipment: getGearTypeLabel(item.gearType),
-      stats: renderOneScreenStats(item),
-      unique: getUniqueModLabel(item.uniqueMod),
-    };
-  }
-
-  function renderOneScreenCell(value, columnKey) {
-    return `
-      <span class="one-screen-cell-clip" data-one-screen-column="${escapeHtml(columnKey)}">
-        <span class="one-screen-cell-content one-screen-column-${escapeHtml(columnKey)}">${escapeHtml(value)}</span>
-      </span>
-    `;
-  }
-
-  function renderOneScreenRow(item) {
-    const values = getOneScreenValues(item);
-
-    return `
-      <tr data-item-key="${escapeHtml(item.key)}" title="${escapeHtml(getJapaneseName(item))}">
-        <td>${renderOneScreenCell(values.name, "name")}</td>
-        <td>${renderOneScreenCell(values.grade, "grade")}</td>
-        <td>${renderOneScreenCell(values.level, "level")}</td>
-        <td>${renderOneScreenCell(values["item-class"], "item-class")}</td>
-        <td>${renderOneScreenCell(values.equipment, "equipment")}</td>
-        <td>${renderOneScreenCell(values.stats, "stats")}</td>
-        <td>${renderOneScreenCell(values.unique, "unique")}</td>
-      </tr>
-    `;
-  }
-
-  function calculateOneScreenBlockCount(itemCount, viewportWidth, viewportHeight) {
-    if (!itemCount) {
-      return 1;
-    }
-
-    const maximumBlocks = Math.min(ONE_SCREEN_MAX_BLOCKS, itemCount);
-    let bestBlockCount = 1;
-    let bestScale = 0;
-
-    for (let blockCount = 1; blockCount <= maximumBlocks; blockCount += 1) {
-      const rowsPerBlock = Math.ceil(itemCount / blockCount);
-      const estimatedWidth = (ONE_SCREEN_TABLE_WIDTH * blockCount)
-        + (ONE_SCREEN_TABLE_GAP * (blockCount - 1));
-      const estimatedHeight = ONE_SCREEN_HEADER_HEIGHT
-        + (ONE_SCREEN_ROW_HEIGHT * rowsPerBlock);
-      const widthScale = viewportWidth / estimatedWidth;
-      const heightScale = viewportHeight / estimatedHeight;
-      const estimatedScale = Math.min(widthScale, heightScale);
-
-      if (estimatedScale > bestScale) {
-        bestScale = estimatedScale;
-        bestBlockCount = blockCount;
-      }
-    }
-
-    return bestBlockCount;
-  }
-
-  function splitItemsIntoBlocks(targetItems, blockCount) {
-    const rowsPerBlock = Math.ceil(targetItems.length / blockCount);
-    const blocks = [];
-
-    for (let blockIndex = 0; blockIndex < blockCount; blockIndex += 1) {
-      const startIndex = blockIndex * rowsPerBlock;
-      const endIndex = startIndex + rowsPerBlock;
-      const blockItems = targetItems.slice(startIndex, endIndex);
-
-      if (blockItems.length) {
-        blocks.push(blockItems);
-      }
-    }
-
-    return blocks;
-  }
-
-  function renderOneScreenTable(blockItems) {
-    return `
-      <table class="one-screen-table">
-        <colgroup>
-          <col class="one-screen-name-column">
-          <col class="one-screen-grade-column">
-          <col class="one-screen-level-column">
-          <col class="one-screen-class-column">
-          <col class="one-screen-equipment-column">
-          <col class="one-screen-stats-column">
-          <col class="one-screen-unique-column">
-        </colgroup>
-        <thead>
-          <tr>
-            ${ONE_SCREEN_COLUMN_KEYS.map((columnKey) => {
-              return `<th>${renderOneScreenCell(ONE_SCREEN_COLUMN_HEADERS[columnKey], columnKey)}</th>`;
-            }).join("")}
-          </tr>
-        </thead>
-        <tbody>
-          ${blockItems.map(renderOneScreenRow).join("")}
-        </tbody>
-      </table>
-    `;
-  }
-
-  /* ========================================================
-     列ごとの最長文字列だけを基準に横圧縮率を決めます。
-     4万件を超えるDOM要素を個別計測せず、Canvasで高速に算出します。
-     ======================================================== */
-  function fitOneScreenColumnContents() {
-    const sampleContent = dom.oneScreenSheet.querySelector(".one-screen-cell-content");
-    if (!sampleContent) {
-      return;
-    }
-
+  function getOneScreenColumnScales(columns) {
+    const availableWidth = ONE_SCREEN_TABLE_WIDTH / columns.length - 7;
     const context = document.createElement("canvas").getContext("2d");
-    if (!context) {
-      return;
+    if (context) {
+      context.font = '10px Inter, "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif';
     }
 
-    context.font = window.getComputedStyle(sampleContent).font;
-    const maximumWidths = {};
-
-    for (const columnKey of ONE_SCREEN_COLUMN_KEYS) {
-      maximumWidths[columnKey] = context.measureText(ONE_SCREEN_COLUMN_HEADERS[columnKey]).width;
+    const scales = new Map();
+    for (const column of columns) {
+      let maxWidth = context?.measureText(column.label).width ?? String(column.label).length * 10;
+      for (const result of state.results) {
+        const text = String(column.text(result) ?? "");
+        const width = context?.measureText(text).width ?? text.length * 10;
+        maxWidth = Math.max(maxWidth, width);
+      }
+      const safeWidth = Math.max(1, maxWidth * 1.4 + 2);
+      scales.set(column.key, Math.min(1, availableWidth / safeWidth));
     }
+    return scales;
+  }
 
-    for (const item of state.filteredItems) {
-      const values = getOneScreenValues(item);
+  function renderOneScreenCell(value, columnKey, columnScales) {
+    const scale = columnScales.get(columnKey) ?? 1;
+    return `<span class="one-screen-cell-clip" data-one-screen-column="${escapeHtml(columnKey)}"><span class="one-screen-cell-content" style="transform:scaleX(${scale})">${escapeHtml(value)}</span></span>`;
+  }
 
-      for (const columnKey of ONE_SCREEN_COLUMN_KEYS) {
-        const measuredWidth = context.measureText(String(values[columnKey] ?? EMPTY_LABEL)).width;
-        if (measuredWidth > maximumWidths[columnKey]) {
-          maximumWidths[columnKey] = measuredWidth;
-        }
+  function renderOneScreenTable(blockResults, columns, columnScales) {
+    const equalWidth = 100 / columns.length;
+    return `<table class="one-screen-table">
+      <colgroup>${columns.map(() => `<col style="width:${equalWidth}%">`).join("")}</colgroup>
+      <thead><tr>${columns.map((column) => `<th>${renderOneScreenCell(column.label, column.key, columnScales)}</th>`).join("")}</tr></thead>
+      <tbody>${blockResults.map((result) => `<tr data-item-key="${escapeHtml(result.item.key)}">${columns.map((column) => `<td>${renderOneScreenCell(column.text(result), column.key, columnScales)}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table>`;
+  }
+
+  function chooseOneScreenLayout(resultCount, viewportWidth, viewportHeight) {
+    let best = { blockCount: 1, rowsPerBlock: Math.max(1, resultCount), scale: 0 };
+    const maxBlocks = Math.min(ONE_SCREEN_MAX_BLOCKS, Math.max(1, resultCount));
+    for (let blockCount = 1; blockCount <= maxBlocks; blockCount += 1) {
+      const rowsPerBlock = Math.ceil(resultCount / blockCount);
+      const contentWidth = blockCount * ONE_SCREEN_TABLE_WIDTH + (blockCount - 1) * ONE_SCREEN_TABLE_GAP;
+      const contentHeight = ONE_SCREEN_HEADER_HEIGHT + rowsPerBlock * ONE_SCREEN_ROW_HEIGHT;
+      const scale = Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight);
+      if (scale > best.scale) {
+        best = { blockCount, rowsPerBlock, scale };
       }
     }
-
-    for (const columnKey of ONE_SCREEN_COLUMN_KEYS) {
-      const clip = dom.oneScreenSheet.querySelector(
-        `.one-screen-cell-clip[data-one-screen-column="${columnKey}"]`,
-      );
-      const availableWidth = clip?.clientWidth ?? 0;
-      const maximumWidth = maximumWidths[columnKey] ?? 0;
-      const hasDimensions = !!availableWidth && !!maximumWidth;
-      const safeAvailableWidth = Math.max(0, availableWidth - 2);
-      const horizontalScale = hasDimensions
-        ? Math.max(0.001, Math.min(1, (safeAvailableWidth / maximumWidth) * 0.65))
-        : 1;
-
-      dom.oneScreenSheet.style.setProperty(
-        `--one-screen-${columnKey}-scale`,
-        String(horizontalScale),
-      );
-    }
+    return best;
   }
 
   function fitOneScreenSheet() {
-    const viewportWidth = dom.oneScreenViewport.clientWidth;
-    const viewportHeight = dom.oneScreenViewport.clientHeight;
-    const sheetWidth = dom.oneScreenSheet.scrollWidth;
-    const sheetHeight = dom.oneScreenSheet.scrollHeight;
-    const hasDimensions = !!viewportWidth && !!viewportHeight && !!sheetWidth && !!sheetHeight;
-
-    if (!hasDimensions) {
+    if (!dom.oneScreenDialog.open) {
       return;
     }
-
-    const widthScale = viewportWidth / sheetWidth;
-    const heightScale = viewportHeight / sheetHeight;
-    const scale = Math.max(0.0001, Math.min(widthScale, heightScale, 1) * 0.995);
-    const scaledWidth = sheetWidth * scale;
-    const scaledHeight = sheetHeight * scale;
-    const left = Math.max(0, (viewportWidth - scaledWidth) / 2);
-    const top = Math.max(0, (viewportHeight - scaledHeight) / 2);
-
-    dom.oneScreenSheet.style.left = `${left}px`;
-    dom.oneScreenSheet.style.top = `${top}px`;
+    const viewportWidth = dom.oneScreenViewport.clientWidth;
+    const viewportHeight = dom.oneScreenViewport.clientHeight;
+    const contentWidth = dom.oneScreenSheet.scrollWidth;
+    const contentHeight = dom.oneScreenSheet.scrollHeight;
+    const scale = Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight, 1);
     dom.oneScreenSheet.style.transform = `scale(${scale})`;
-
+    dom.oneScreenSheet.style.left = `${Math.max(0, (viewportWidth - contentWidth * scale) / 2)}px`;
+    dom.oneScreenSheet.style.top = `${Math.max(0, (viewportHeight - contentHeight * scale) / 2)}px`;
     const blockCount = dom.oneScreenSheet.querySelectorAll(".one-screen-table").length;
-    const scalePercent = (scale * 100).toFixed(scale >= 0.1 ? 1 : 2);
-    dom.oneScreenMeta.textContent = `${state.filteredItems.length.toLocaleString("ja-JP")}件 / ${blockCount}分割 / 表示倍率 ${scalePercent}%`;
+    dom.oneScreenMeta.textContent = `${state.results.length.toLocaleString("ja-JP")}行 / ${blockCount}分割 / 表示倍率 ${(scale * 100).toFixed(1)}%`;
   }
 
-  function renderOneScreenResult() {
-    const viewportWidth = dom.oneScreenViewport.clientWidth;
-    const viewportHeight = dom.oneScreenViewport.clientHeight;
-    const blockCount = calculateOneScreenBlockCount(
-      state.filteredItems.length,
-      viewportWidth,
-      viewportHeight,
-    );
-    const blocks = splitItemsIntoBlocks(state.filteredItems, blockCount);
-
-    dom.oneScreenSheet.style.left = "0";
-    dom.oneScreenSheet.style.top = "0";
-    dom.oneScreenSheet.style.transform = "none";
-
-    if (!blocks.length) {
-      dom.oneScreenSheet.innerHTML = '<p class="one-screen-empty">条件に一致するアイテムがありません。</p>';
-      dom.oneScreenMeta.textContent = "0件";
-      fitOneScreenSheet();
+  function renderOneScreenResults() {
+    const columns = getCurrentColumns(true);
+    if (!state.results.length) {
+      dom.oneScreenSheet.innerHTML = '<p class="one-screen-empty">条件に一致するデータがありません。</p>';
       return;
     }
-
-    dom.oneScreenSheet.innerHTML = blocks.map(renderOneScreenTable).join("");
-    fitOneScreenColumnContents();
-    fitOneScreenSheet();
-  }
-
-  function hasOneScreenDialogElements() {
-    return !!dom.oneScreenDialog
-      && !!dom.oneScreenMeta
-      && !!dom.oneScreenViewport
-      && !!dom.oneScreenSheet
-      && !!dom.closeOneScreenButton;
+    const layout = chooseOneScreenLayout(
+      state.results.length,
+      dom.oneScreenViewport.clientWidth,
+      dom.oneScreenViewport.clientHeight,
+    );
+    const blocks = [];
+    for (let start = 0; start < state.results.length; start += layout.rowsPerBlock) {
+      blocks.push(state.results.slice(start, start + layout.rowsPerBlock));
+    }
+    const columnScales = getOneScreenColumnScales(columns);
+    dom.oneScreenSheet.innerHTML = blocks
+      .map((block) => renderOneScreenTable(block, columns, columnScales))
+      .join("");
   }
 
   function openOneScreenDialog() {
-    const canOpenDialog = hasOneScreenDialogElements()
-      && typeof dom.oneScreenDialog.showModal === "function";
-
-    if (!canOpenDialog) {
-      console.error("1画面表示に必要なモーダル要素が見つかりません。index.htmlとapp.jsの版を揃えてください。");
+    if (!dom.oneScreenDialog || typeof dom.oneScreenDialog.showModal !== "function") {
+      window.alert("全件表示モーダルを開けません。index.htmlとapp.jsを同じ版へ揃えてください。");
       return;
     }
-
+    dom.oneScreenSheet.style.transform = "none";
+    dom.oneScreenSheet.style.left = "0";
+    dom.oneScreenSheet.style.top = "0";
     dom.oneScreenDialog.showModal();
-
-    window.requestAnimationFrame(() => {
-      renderOneScreenResult();
-    });
+    renderOneScreenResults();
+    requestAnimationFrame(() => requestAnimationFrame(fitOneScreenSheet));
   }
 
   function scheduleOneScreenRefit() {
-    const canRefit = hasOneScreenDialogElements() && dom.oneScreenDialog.open;
-    if (!canRefit) {
+    if (!dom.oneScreenDialog?.open) {
       return;
     }
-
-    if (state.oneScreenResizeFrame) {
-      window.cancelAnimationFrame(state.oneScreenResizeFrame);
-    }
-
-    state.oneScreenResizeFrame = window.requestAnimationFrame(() => {
-      state.oneScreenResizeFrame = null;
-      renderOneScreenResult();
+    cancelAnimationFrame(state.oneScreenResizeFrame);
+    state.oneScreenResizeFrame = requestAnimationFrame(() => {
+      renderOneScreenResults();
+      requestAnimationFrame(fitOneScreenSheet);
     });
   }
 
@@ -1402,12 +1350,7 @@
      詳細表示
      ======================================================== */
   function createDetailItem(label, value) {
-    return `
-      <div class="detail-item">
-        <dt>${escapeHtml(label)}</dt>
-        <dd>${escapeHtml(value ?? EMPTY_LABEL)}</dd>
-      </div>
-    `;
+    return `<div class="detail-item"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value ?? EMPTY_LABEL)}</dd></div>`;
   }
 
   function renderDetailStats(item, source) {
@@ -1415,16 +1358,24 @@
     if (!stats.length) {
       return `<p class="muted">なし</p>`;
     }
+    return `<div class="detail-stat-list">${stats.map((stat) => `<div class="detail-stat-row"><strong>${escapeHtml(getStatLabel(stat.stat))}</strong><span>${escapeHtml(stat.disp || formatNumber(stat.value))}</span><code>${escapeHtml(MOD_LABELS[stat.mod] ?? stat.mod)} / raw ${escapeHtml(stat.value)}</code></div>`).join("")}</div>`;
+  }
 
-    return `
-      <div class="stat-list">
-        ${stats.map((stat) => {
-          const label = `${getStatLabel(stat.stat)} ${stat.disp || formatNumber(stat.value)}`;
-          const detail = `${MOD_LABELS[stat.mod] ?? stat.mod} / raw: ${stat.value}`;
-          return `<span class="stat-badge" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
-        }).join("")}
-      </div>
-    `;
+  function renderMaterialEffectDetail(item) {
+    const info = item.materialInfo;
+    const rows = [];
+    for (const effect of info?.effects ?? []) {
+      for (const tier of effect.tiers ?? []) {
+        rows.push({ effect, tier });
+      }
+    }
+    if (!rows.length) {
+      return '<p class="muted">この素材には能力付与パラメータがありません。</p>';
+    }
+    return `<div class="detail-effect-table-wrap"><table class="detail-effect-table">
+      <thead><tr><th>対象</th><th>StatModKey</th><th>適用Tier</th><th>データTier</th><th>能力</th><th>方式</th><th>最小値(raw)</th><th>最大値(raw)</th><th>刻み(raw)</th></tr></thead>
+      <tbody>${rows.map(({ effect, tier }) => `<tr><td>${escapeHtml(getGearGroupLabel(effect.gearGroup))}</td><td>${escapeHtml(effect.statModKey)}</td><td>${escapeHtml(`${effect.minTier}〜${effect.maxTier}`)}</td><td>${escapeHtml(tier.tier)}</td><td>${escapeHtml(getStatLabel(tier.stat))}</td><td>${escapeHtml(MOD_LABELS[tier.mod] ?? tier.mod)}</td><td>${escapeHtml(formatNumber(tier.minValue))}</td><td>${escapeHtml(formatNumber(tier.maxValue))}</td><td>${escapeHtml(formatNumber(tier.interval))}</td></tr>`).join("")}</tbody>
+    </table></div>`;
   }
 
   function showItemDetail(itemKey) {
@@ -1432,52 +1383,52 @@
     if (!item) {
       return;
     }
-
-    const classes = (item.classes ?? []).map(getClassLabel).join(" / ") || EMPTY_LABEL;
-    const slots = item.slots
-      ? Object.entries(item.slots)
-        .map(([slotName, count]) => `${SLOT_LABELS[slotName] ?? slotName}: ${count}`)
-        .join(" / ")
-      : EMPTY_LABEL;
-
     dom.detailTitle.textContent = `${getJapaneseName(item)} (${item.key})`;
-    dom.detailContent.innerHTML = `
-      <dl class="detail-grid">
-        ${createDetailItem("英語名", item.name)}
-        ${createDetailItem("アイテム種別", getTypeLabel(item.type))}
-        ${createDetailItem("素材分類", getMaterialCategoryLabel(getMaterialCategory(item)))}
-        ${createDetailItem("レアリティ", getGradeLabel(item.grade))}
-        ${createDetailItem("レベル", formatNumber(item.level))}
-        ${createDetailItem("クラス", classes)}
-        ${createDetailItem("装備部位", getPartLabel(item.parts))}
-        ${createDetailItem("装備種", getGearTypeLabel(item.gearType))}
-        ${createDetailItem("装備グループ", getGearGroupLabel(item.gearGroup))}
-        ${createDetailItem("バリアント", item.variant ?? EMPTY_LABEL)}
-        ${createDetailItem("ゴールド", formatNumber(item.gold))}
-        ${createDetailItem("入手可能", item.obtainable ? "はい" : "いいえ")}
-        ${createDetailItem("取引可能", item.tradable ? "はい" : "いいえ")}
-        ${createDetailItem("スロット", slots)}
-        ${createDetailItem("ドロップキー", formatNumber(item.dropKey))}
-        ${createDetailItem("アイコン", item.icon ?? EMPTY_LABEL)}
-        ${createDetailItem("ユニーク効果", getUniqueModLabel(item.uniqueMod))}
-      </dl>
 
-      <section class="detail-section">
-        <h3>基本能力</h3>
-        ${renderDetailStats(item, "base")}
-      </section>
-
-      <section class="detail-section">
-        <h3>固有能力</h3>
-        ${renderDetailStats(item, "inherent")}
-      </section>
-
-      <section class="detail-section">
-        <h3>元データ</h3>
-        <pre class="raw-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre>
-      </section>
-    `;
-
+    if (item.type === "MATERIAL") {
+      const info = item.materialInfo;
+      dom.detailContent.innerHTML = `
+        <dl class="detail-grid">
+          ${createDetailItem("英語名", item.name)}
+          ${createDetailItem("レアリティ", getGradeLabel(item.grade))}
+          ${createDetailItem("素材分類", getMaterialCategoryLabel(info?.category))}
+          ${createDetailItem("素材内部種別", getMaterialTypeLabel(info?.materialType))}
+          ${createDetailItem("StatModGroupKey", formatNumber(info?.statModGroupKey))}
+          ${createDetailItem("ゴールド", formatNumber(item.gold))}
+          ${createDetailItem("入手可能", item.obtainable ? "はい" : "いいえ")}
+          ${createDetailItem("取引可能", item.tradable ? "はい" : "いいえ")}
+          ${createDetailItem("アイコン", item.icon ?? EMPTY_LABEL)}
+        </dl>
+        <section class="detail-section"><h3>素材効果パラメータ</h3>${renderMaterialEffectDetail(item)}</section>
+        <section class="detail-section"><h3>元データ</h3><pre class="raw-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre></section>
+      `;
+    } else {
+      const classes = (item.classes ?? []).map(getClassLabel).join(" / ") || EMPTY_LABEL;
+      const slots = item.slots
+        ? Object.entries(item.slots).map(([name, count]) => `${SLOT_LABELS[name] ?? name}: ${count}`).join(" / ")
+        : EMPTY_LABEL;
+      dom.detailContent.innerHTML = `
+        <dl class="detail-grid">
+          ${createDetailItem("英語名", item.name)}
+          ${createDetailItem("レアリティ", getGradeLabel(item.grade))}
+          ${createDetailItem("レベル", formatNumber(item.level))}
+          ${createDetailItem("クラス", classes)}
+          ${createDetailItem("装備部位", getPartLabel(item.parts))}
+          ${createDetailItem("装備種", getGearTypeLabel(item.gearType))}
+          ${createDetailItem("装備グループ", getGearGroupLabel(item.gearGroup))}
+          ${createDetailItem("バリアント", item.variant ?? EMPTY_LABEL)}
+          ${createDetailItem("ゴールド", formatNumber(item.gold))}
+          ${createDetailItem("入手可能", item.obtainable ? "はい" : "いいえ")}
+          ${createDetailItem("取引可能", item.tradable ? "はい" : "いいえ")}
+          ${createDetailItem("スロット", slots)}
+          ${createDetailItem("ユニーク効果", getUniqueModLabel(item.uniqueMod))}
+          ${createDetailItem("アイコン", item.icon ?? EMPTY_LABEL)}
+        </dl>
+        <section class="detail-section"><h3>基本能力</h3>${renderDetailStats(item, "base")}</section>
+        <section class="detail-section"><h3>固有能力</h3>${renderDetailStats(item, "inherent")}</section>
+        <section class="detail-section"><h3>元データ</h3><pre class="raw-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre></section>
+      `;
+    }
     dom.detailDialog.showModal();
   }
 
@@ -1485,85 +1436,82 @@
      CSV出力
      ======================================================== */
   function escapeCsv(value) {
-    const text = String(value ?? "");
-    const escapedText = text.replace(/"/g, '""');
-    return `"${escapedText}"`;
+    return `"${String(value ?? "").replace(/"/g, '""')}"`;
   }
 
   function exportCsv() {
-    const header = [
-      "item-key",
-      "name-ja",
-      "name-en",
-      "item-type",
-      "material-category",
-      "grade",
-      "level",
-      "classes",
-      "parts",
-      "gear-type",
-      "gear-group",
-      "variant",
-      "gold",
-      "obtainable",
-      "tradable",
-      "decoration-slots",
-      "engraving-slots",
-      "inscription-slots",
-      "base-stats",
-      "inherent-stats",
-      "unique-mod",
-      "drop-key",
-      "icon",
-    ];
-
-    const rows = [header.map(escapeCsv).join(",")];
-
-    for (const item of state.filteredItems) {
-      const baseStats = (item.stats?.base ?? [])
-        .map((stat) => `${getStatLabel(stat.stat)} ${stat.disp || stat.value} [${MOD_LABELS[stat.mod] ?? stat.mod}]`)
-        .join(" / ");
-      const inherentStats = (item.stats?.inherent ?? [])
-        .map((stat) => `${getStatLabel(stat.stat)} ${stat.disp || stat.value} [${MOD_LABELS[stat.mod] ?? stat.mod}]`)
-        .join(" / ");
-
-      const row = [
+    let headers;
+    let rows;
+    if (isGearMode()) {
+      headers = ["item-key", "name-ja", "name-en", "grade", "level", "classes", "parts", "gear-type", "gear-group", "variant", "gold", "obtainable", "tradable", "decoration-slots", "engraving-slots", "inscription-slots", "base-stats", "inherent-stats", "unique-mod"];
+      rows = state.results.map(({ item }) => [
         item.key,
         getJapaneseName(item),
         item.name,
-        getTypeLabel(item.type),
-        getMaterialCategoryLabel(getMaterialCategory(item)),
-        getGradeLabel(item.grade),
+        item.grade,
         item.level,
-        (item.classes ?? []).map(getClassLabel).join(" / "),
-        getPartLabel(item.parts),
-        getGearTypeLabel(item.gearType),
-        getGearGroupLabel(item.gearGroup),
+        (item.classes ?? []).join(" / "),
+        item.parts,
+        item.gearType,
+        item.gearGroup,
         item.variant,
         item.gold,
-        item.obtainable ? "true" : "false",
-        item.tradable ? "true" : "false",
+        item.obtainable,
+        item.tradable,
         item.slots?.decoration,
         item.slots?.engraving,
         item.slots?.inscription,
-        baseStats,
-        inherentStats,
-        getUniqueModLabel(item.uniqueMod),
-        item.dropKey,
-        item.icon,
-      ];
-
-      rows.push(row.map(escapeCsv).join(","));
+        (item.stats?.base ?? []).map((stat) => `${stat.stat}:${stat.mod}:${stat.value}`).join(" / "),
+        (item.stats?.inherent ?? []).map((stat) => `${stat.stat}:${stat.mod}:${stat.value}`).join(" / "),
+        item.uniqueMod,
+      ]);
+    } else if (isGenericMaterialMode()) {
+      headers = ["item-key", "name-ja", "name-en", "grade", "material-category", "material-type", "stat-mod-group-key", "gold", "obtainable", "tradable"];
+      rows = state.results.map(({ item }) => [
+        item.key,
+        getJapaneseName(item),
+        item.name,
+        item.grade,
+        item.materialInfo?.category,
+        item.materialInfo?.materialType,
+        item.materialInfo?.statModGroupKey,
+        item.gold,
+        item.obtainable,
+        item.tradable,
+      ]);
+    } else {
+      headers = ["item-key", "name-ja", "name-en", "grade", "material-category", "material-type", "stat-mod-group-key", "target-gear-group", "stat-mod-key", "min-tier", "max-tier", "tier", "stat-type", "mod-type", "min-value", "max-value", "interval", "gold", "obtainable", "tradable"];
+      rows = state.results.map(({ item, effect, tier }) => [
+        item.key,
+        getJapaneseName(item),
+        item.name,
+        item.grade,
+        item.materialInfo?.category,
+        item.materialInfo?.materialType,
+        item.materialInfo?.statModGroupKey,
+        effect?.gearGroup,
+        effect?.statModKey,
+        effect?.minTier,
+        effect?.maxTier,
+        tier?.tier,
+        tier?.stat,
+        tier?.mod,
+        tier?.minValue,
+        tier?.maxValue,
+        tier?.interval,
+        item.gold,
+        item.obtainable,
+        item.tradable,
+      ]);
     }
 
-    const csv = `\uFEFF${rows.join("\r\n")}`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const csvRows = [headers, ...rows].map((row) => row.map(escapeCsv).join(","));
+    const blob = new Blob([`\uFEFF${csvRows.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-
     anchor.href = url;
-    anchor.download = `tbh-items-${timestamp}.csv`;
+    anchor.download = `tbh-${isGearMode() ? "gear" : dom.materialCategory.value}-${timestamp}.csv`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -1574,80 +1522,75 @@
      リセット
      ======================================================== */
   function resetFilters() {
-    const inputs = dom.filterContent.querySelectorAll("input, select");
-    for (const input of inputs) {
+    for (const input of dom.filterContent.querySelectorAll("input, select")) {
       if (input.type === "checkbox") {
         input.checked = input.id === "include-all-class";
       } else {
         input.value = "";
       }
     }
-
+    dom.itemType.value = "GEAR";
+    dom.materialCategory.value = "decoration";
     dom.statMatchMode.value = "and";
     dom.statFilterList.replaceChildren();
     dom.pageSize.value = String(DEFAULT_PAGE_SIZE);
-    dom.sortKey.value = "grade";
-    dom.sortStatSource.value = "any";
-    dom.sortStat.value = "";
-    dom.sortStatMod.value = "";
     dom.sortDirection.value = "asc";
     state.pageSize = DEFAULT_PAGE_SIZE;
-    updateStatSortControls();
-
     addStatFilter();
+    updateModeVisibility();
     applyFilters();
   }
 
   /* ========================================================
-     イベント登録
+     イベント
      ======================================================== */
   function registerEvents() {
     let keywordTimer = null;
 
     dom.filterContent.addEventListener("input", (event) => {
-      const isKeywordInput = event.target === dom.keyword;
-      if (isKeywordInput) {
-        window.clearTimeout(keywordTimer);
-        keywordTimer = window.setTimeout(() => applyFilters(), 120);
+      if (event.target === dom.keyword) {
+        clearTimeout(keywordTimer);
+        keywordTimer = setTimeout(() => applyFilters(), 120);
         return;
       }
-
+      if (event.target.matches("select, input[type=checkbox]")) {
+        return;
+      }
       applyFilters();
     });
 
-    dom.filterContent.addEventListener("change", () => applyFilters());
-
-    dom.addStatFilterButton.addEventListener("click", () => {
-      addStatFilter();
+    dom.filterContent.addEventListener("change", (event) => {
+      if (event.target === dom.itemType) {
+        if (dom.itemType.value === "MATERIAL" && !dom.materialCategory.value) {
+          dom.materialCategory.value = "decoration";
+        }
+        updateModeVisibility();
+      } else if (event.target === dom.materialCategory) {
+        updateModeVisibility();
+      }
+      applyFilters();
     });
 
+    dom.addStatFilterButton.addEventListener("click", addStatFilter);
     dom.statFilterList.addEventListener("change", (event) => {
-      const sourceSelect = event.target.closest('[data-field="source"]');
-      if (!sourceSelect) {
-        return;
+      const source = event.target.closest('[data-field="source"]');
+      if (source) {
+        updateStatFilterRow(source.closest(".stat-filter-row"));
       }
-
-      const row = sourceSelect.closest(".stat-filter-row");
-      updateStatFilterRow(row);
     });
-
     dom.statFilterList.addEventListener("click", (event) => {
-      const removeButton = event.target.closest(".stat-filter-remove");
-      if (!removeButton) {
+      const button = event.target.closest(".stat-filter-remove");
+      if (!button) {
         return;
       }
-
-      removeButton.closest(".stat-filter-row").remove();
+      button.closest(".stat-filter-row").remove();
       updateAddStatFilterButton();
       applyFilters();
     });
 
     dom.resetButton.addEventListener("click", resetFilters);
     dom.exportButton.addEventListener("click", exportCsv);
-
-    if (dom.oneScreenModeButton) {
-      dom.oneScreenModeButton.addEventListener("click", openOneScreenDialog);
-    }
+    dom.oneScreenModeButton.addEventListener("click", openOneScreenDialog);
 
     dom.sortKey.addEventListener("change", () => {
       updateStatSortControls();
@@ -1661,57 +1604,47 @@
     });
 
     dom.previousPageButton.addEventListener("click", () => {
-      if (state.currentPage <= 1) {
-        return;
+      if (state.currentPage > 1) {
+        state.currentPage -= 1;
+        renderPagination();
       }
-
-      state.currentPage -= 1;
-      renderPagination();
     });
-
     dom.nextPageButton.addEventListener("click", () => {
-      const totalPages = Math.max(1, Math.ceil(state.filteredItems.length / state.pageSize));
-      if (state.currentPage >= totalPages) {
-        return;
+      const totalPages = Math.max(1, Math.ceil(state.results.length / state.pageSize));
+      if (state.currentPage < totalPages) {
+        state.currentPage += 1;
+        renderPagination();
       }
-
-      state.currentPage += 1;
-      renderPagination();
     });
 
-    dom.resultBody.addEventListener("click", (event) => {
+    const activateRow = (event) => {
       const row = event.target.closest("tr[data-item-key]");
       if (row) {
         showItemDetail(row.dataset.itemKey);
       }
-    });
-
+    };
+    dom.resultBody.addEventListener("click", activateRow);
     dom.resultBody.addEventListener("keydown", (event) => {
-      const isActivationKey = event.key === "Enter" || event.key === " ";
-      if (!isActivationKey) {
-        return;
-      }
-
-      const row = event.target.closest("tr[data-item-key]");
-      if (row) {
+      if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        showItemDetail(row.dataset.itemKey);
+        activateRow(event);
       }
     });
 
-    if (hasOneScreenDialogElements()) {
-      dom.closeOneScreenButton.addEventListener("click", () => dom.oneScreenDialog.close());
-      dom.oneScreenSheet.addEventListener("click", (event) => {
-        const row = event.target.closest("tr[data-item-key]");
-        if (!row) {
-          return;
-        }
-
+    dom.closeOneScreenButton.addEventListener("click", () => dom.oneScreenDialog.close());
+    dom.oneScreenSheet.addEventListener("click", (event) => {
+      const row = event.target.closest("tr[data-item-key]");
+      if (row) {
         dom.oneScreenDialog.close();
         showItemDetail(row.dataset.itemKey);
-      });
-      window.addEventListener("resize", scheduleOneScreenRefit);
-    }
+      }
+    });
+    dom.oneScreenDialog.addEventListener("click", (event) => {
+      if (event.target === dom.oneScreenDialog) {
+        dom.oneScreenDialog.close();
+      }
+    });
+    window.addEventListener("resize", scheduleOneScreenRefit);
 
     dom.closeDialogButton.addEventListener("click", () => dom.detailDialog.close());
     dom.detailDialog.addEventListener("click", (event) => {
@@ -1729,7 +1662,7 @@
   }
 
   /* ========================================================
-     起動処理
+     起動
      ======================================================== */
   function initialize() {
     if (!items.length) {
@@ -1737,13 +1670,11 @@
       dom.resultNote.textContent = "data.js が同じフォルダにあるか確認してください。";
       return;
     }
-
     renderSummaryCards();
     renderBasicFilterOptions();
-    renderSortStatOptions();
     renderGradeFilters();
-    updateStatSortControls();
     addStatFilter();
+    updateModeVisibility();
     registerEvents();
     applyFilters();
   }

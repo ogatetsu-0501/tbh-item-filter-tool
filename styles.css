@@ -768,3 +768,71 @@ tbody tr:hover {
     min-width: 0;
   }
 }
+
+/* =========================================================
+   装備／素材の表示切替と素材専用表示
+   ========================================================= */
+[hidden] {
+  display: none !important;
+}
+
+.material-result-table {
+  min-width: 2400px;
+}
+
+.material-result-table th,
+.material-result-table td {
+  white-space: nowrap;
+}
+
+.material-result-table td[data-column="name"] {
+  white-space: normal;
+}
+
+.detail-stat-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.detail-stat-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.5fr) minmax(6rem, 0.7fr) minmax(12rem, 1fr);
+  gap: 0.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: #10172b;
+}
+
+.detail-stat-row code {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.detail-effect-table-wrap {
+  overflow: auto;
+  max-height: 52vh;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+}
+
+.detail-effect-table {
+  min-width: 1150px;
+  table-layout: auto;
+}
+
+.detail-effect-table th,
+.detail-effect-table td {
+  padding: 0.55rem 0.65rem;
+  white-space: nowrap;
+}
+
+.one-screen-cell-content {
+  max-width: none;
+}
+
+@media (max-width: 760px) {
+  .detail-stat-row {
+    grid-template-columns: 1fr;
+  }
+}

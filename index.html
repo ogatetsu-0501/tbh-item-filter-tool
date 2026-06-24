@@ -14,7 +14,7 @@
       <p class="eyebrow">TaskBar Hero Data Tool</p>
       <h1>アイテム検索</h1>
       <p class="header-description">
-        アイテム名・分類・装備条件・能力値・ユニーク効果を組み合わせて検索できます。
+        装備と素材を別々の列構成で検索します。素材は装飾・彫刻・碑文・その他素材を切り替えられます。
       </p>
     </div>
     <div class="header-actions">
@@ -50,36 +50,44 @@
           </label>
 
           <label class="field">
-            <span>アイテム種別</span>
-            <select id="item-type"></select>
+            <span>表示対象</span>
+            <select id="item-type">
+              <option value="GEAR" selected>装備</option>
+              <option value="MATERIAL">素材</option>
+            </select>
           </label>
 
-          <label class="field">
+          <label id="material-category-field" class="field material-only" hidden>
             <span>素材分類</span>
-            <select id="material-category"></select>
+            <select id="material-category">
+              <option value="decoration" selected>装飾</option>
+              <option value="engraving">彫刻</option>
+              <option value="inscription">碑文</option>
+              <option value="material">素材</option>
+            </select>
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>クラス</span>
             <select id="item-class"></select>
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>装備部位</span>
             <select id="parts"></select>
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>装備種</span>
             <select id="gear-type"></select>
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>装備グループ</span>
             <select id="gear-group"></select>
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>バリアント</span>
             <select id="variant">
               <option value="">すべて</option>
@@ -87,6 +95,46 @@
               <option value="B">B</option>
               <option value="none">なし</option>
             </select>
+          </label>
+
+          <label class="field material-effect-only" hidden>
+            <span>対象装備分類</span>
+            <select id="material-target-group"></select>
+          </label>
+
+          <label class="field material-effect-only" hidden>
+            <span>素材能力</span>
+            <select id="material-stat"></select>
+          </label>
+
+          <label class="field material-effect-only" hidden>
+            <span>計算方式</span>
+            <select id="material-mod"></select>
+          </label>
+
+          <label class="field material-effect-only" hidden>
+            <span>最低Tier</span>
+            <input id="material-tier-min" type="number" min="1" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field material-effect-only" hidden>
+            <span>最高Tier</span>
+            <input id="material-tier-max" type="number" min="1" step="1" placeholder="指定なし">
+          </label>
+
+          <label class="field material-effect-only" hidden>
+            <span>効果値 最小</span>
+            <input id="material-value-min" type="number" step="any" placeholder="指定なし">
+          </label>
+
+          <label class="field material-effect-only" hidden>
+            <span>効果値 最大</span>
+            <input id="material-value-max" type="number" step="any" placeholder="指定なし">
+          </label>
+
+          <label class="field material-generic-only" hidden>
+            <span>素材の内部種別</span>
+            <select id="material-type-detail"></select>
           </label>
 
           <label class="field">
@@ -107,12 +155,12 @@
             </select>
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>最低レベル</span>
             <input id="level-min" type="number" min="0" step="1" placeholder="指定なし">
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>最高レベル</span>
             <input id="level-max" type="number" min="0" step="1" placeholder="指定なし">
           </label>
@@ -127,22 +175,22 @@
             <input id="gold-max" type="number" min="0" step="1" placeholder="指定なし">
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>装飾スロット 最低数</span>
             <input id="decoration-min" type="number" min="0" step="1" placeholder="指定なし">
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>彫刻スロット 最低数</span>
             <input id="engraving-min" type="number" min="0" step="1" placeholder="指定なし">
           </label>
 
-          <label class="field">
-            <span>刻印スロット 最低数</span>
+          <label class="field gear-only">
+            <span>碑文スロット 最低数</span>
             <input id="inscription-min" type="number" min="0" step="1" placeholder="指定なし">
           </label>
 
-          <label class="field">
+          <label class="field gear-only">
             <span>ユニーク効果</span>
             <select id="unique-mod"></select>
           </label>
@@ -153,10 +201,10 @@
           <div id="grade-filters" class="chip-list"></div>
         </fieldset>
 
-        <section class="advanced-section">
+        <section id="gear-stat-section" class="advanced-section gear-only">
           <div class="advanced-heading">
             <div>
-              <h3>能力条件</h3>
+              <h3>装備能力条件</h3>
               <p>基本能力・固有能力の種類、計算方式、数値範囲を指定できます。</p>
             </div>
             <div class="inline-controls">
@@ -173,7 +221,7 @@
           <div id="stat-filter-list" class="stat-filter-list"></div>
         </section>
 
-        <div class="filter-footer">
+        <div class="filter-footer gear-only">
           <label class="check-field">
             <input id="include-all-class" type="checkbox" checked>
             <span>クラス指定時に「全クラス」装備を含める</span>
@@ -195,14 +243,7 @@
           </button>
           <label class="compact-field">
             <span>並び順</span>
-            <select id="sort-key">
-              <option value="grade">レアリティ</option>
-              <option value="level">レベル</option>
-              <option value="name">日本語名</option>
-              <option value="key">アイテムID</option>
-              <option value="gold">ゴールド</option>
-              <option value="stat">指定能力値</option>
-            </select>
+            <select id="sort-key"></select>
           </label>
           <div id="stat-sort-controls" class="stat-sort-controls" hidden>
             <label class="compact-field">
@@ -241,6 +282,7 @@
               <option value="50" selected>50件</option>
               <option value="100">100件</option>
               <option value="250">250件</option>
+              <option value="500">500件</option>
             </select>
           </label>
         </div>
@@ -248,21 +290,7 @@
 
       <div class="table-wrap">
         <table id="result-table">
-          <thead>
-            <tr>
-              <th data-column="item-key">ID</th>
-              <th data-column="name">名称</th>
-              <th data-column="item-type">種別</th>
-              <th data-column="grade">レアリティ</th>
-              <th data-column="level">Lv</th>
-              <th data-column="class">クラス</th>
-              <th data-column="equipment">装備分類</th>
-              <th data-column="stats">能力</th>
-              <th data-column="unique-mod">ユニーク能力</th>
-              <th data-column="gold">ゴールド</th>
-              <th data-column="status">状態</th>
-            </tr>
-          </thead>
+          <thead id="result-head"></thead>
           <tbody id="result-body"></tbody>
         </table>
       </div>
@@ -274,7 +302,6 @@
       </div>
     </section>
   </main>
-
 
   <dialog id="one-screen-dialog" class="one-screen-dialog" aria-labelledby="one-screen-title">
     <div class="one-screen-dialog-header">
