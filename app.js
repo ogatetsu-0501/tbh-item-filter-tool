@@ -65,6 +65,7 @@
     AddAllSkillLevel: "全スキルレベル",
     AddHpPerHit: "命中時HP回復",
     AddHpPerKill: "撃破時HP回復",
+    AdditionalExp: "追加経験値",
     AllElementalResistance: "全属性耐性",
     AreaOfEffect: "効果範囲",
     Armor: "防御力",
@@ -73,30 +74,51 @@
     BaseAttackCountReduction: "基本攻撃回数減少",
     BlockChance: "ブロック率",
     CastSpeed: "詠唱速度",
+    ChaosDamageAddition: "混沌追加ダメージ",
     ChaosDamagePercent: "混沌ダメージ",
+    ChaosDamageReduction: "混沌ダメージ軽減",
     ChaosResistance: "混沌耐性",
+    ColdDamageAddition: "冷気追加ダメージ",
     ColdDamagePercent: "冷気ダメージ",
+    ColdDamageReduction: "冷気ダメージ軽減",
     ColdResistance: "冷気耐性",
     CooldownReduction: "クールタイム短縮",
     CriticalChance: "クリティカル率",
     CriticalDamage: "クリティカルダメージ",
     DamageAbsorption: "ダメージ吸収",
+    DamageAddition: "追加ダメージ",
     DamageReduction: "ダメージ軽減",
     DodgeChance: "回避率",
+    FireDamageAddition: "火炎追加ダメージ",
     FireDamagePercent: "火炎ダメージ",
+    FireDamageReduction: "火炎ダメージ軽減",
     FireResistance: "火炎耐性",
     HpLeech: "HP吸収",
     HpRegenPerSec: "毎秒HP回復",
     IncreaseAreaOfEffectDamage: "範囲攻撃ダメージ",
     IncreaseExpAmount: "経験値獲得量増加",
+    IncreaseMeleeDamage: "近接ダメージ増加",
     IncreaseProjectileDamage: "投射物ダメージ増加",
     IncreaseSummonDamage: "召喚ダメージ増加",
+    IncreaseProjectileSpeed: "投射物速度増加",
+    LightningDamageAddition: "雷追加ダメージ",
     LightningDamagePercent: "雷ダメージ",
+    LightningDamageReduction: "雷ダメージ軽減",
     LightningResistance: "雷耐性",
     MaxHp: "最大HP",
+    MaxBlockChance: "最大ブロック率",
+    MaxChaosResistance: "最大混沌耐性",
+    MaxColdResistance: "最大冷気耐性",
+    MaxDodgeChance: "最大回避率",
+    MaxElementalBlockChance: "最大属性ブロック率",
+    MaxElementalDodgeChance: "最大属性回避率",
+    MaxFireResistance: "最大火炎耐性",
+    MaxLightningResistance: "最大雷耐性",
     MovementSpeed: "移動速度",
     Multistrike: "マルチストライク",
+    PhysicalDamageAddition: "物理追加ダメージ",
     PhysicalDamagePercent: "物理ダメージ",
+    PhysicalDamageReduction: "物理ダメージ軽減",
     PhysicalResistance: "物理耐性",
     ProjectileCount: "投射物数",
     SkillDurationIncrease: "スキル持続時間増加",
@@ -160,10 +182,8 @@
   const MATERIAL_EFFECT_SORT_OPTIONS = [
     ...MATERIAL_GENERIC_SORT_OPTIONS,
     ["target", "対象装備分類"],
-    ["material-stat", "素材能力"],
-    ["tier", "Tier"],
-    ["min-value", "最小値"],
-    ["max-value", "最大値"],
+    ["material-stat", "能力"],
+    ["average-value", "表示値平均（最小値と最大値）"],
     ["interval", "刻み"],
   ];
 
@@ -282,6 +302,114 @@
   function formatNumber(value) {
     const hasValue = value !== null && value !== undefined && value !== "";
     return hasValue ? Number(value).toLocaleString("ja-JP") : EMPTY_LABEL;
+  }
+
+  /* ========================================================
+     能力値のゲーム内表示形式
+
+     内部値は能力ごとにスケールが異なります。
+     装備データの既存表示値と GameAssembly.dll の表示処理を照合し、
+     素材・装備で同じ変換を使用します。
+     ======================================================== */
+  const INTEGER_PERCENT_STATS = new Set([
+    "AllElementalResistance",
+    "FireResistance",
+    "ColdResistance",
+    "LightningResistance",
+    "ChaosResistance",
+    "MaxFireResistance",
+    "MaxColdResistance",
+    "MaxLightningResistance",
+    "MaxChaosResistance",
+  ]);
+
+  const TENTH_PERCENT_STATS = new Set([
+    "AttackSpeed",
+    "CriticalChance",
+    "CriticalDamage",
+    "CooldownReduction",
+    "DodgeChance",
+    "BlockChance",
+    "MaxDodgeChance",
+    "MaxBlockChance",
+    "HpLeech",
+    "PhysicalDamagePercent",
+    "FireDamagePercent",
+    "ColdDamagePercent",
+    "LightningDamagePercent",
+    "ChaosDamagePercent",
+    "DamageReduction",
+    "PhysicalDamageReduction",
+    "FireDamageReduction",
+    "ColdDamageReduction",
+    "LightningDamageReduction",
+    "ChaosDamageReduction",
+    "CastSpeed",
+    "SkillHealIncrease",
+    "SkillDurationIncrease",
+    "ElementalBlockChance",
+    "ElementalDodgeChance",
+    "MaxElementalBlockChance",
+    "MaxElementalDodgeChance",
+    "IncreaseProjectileSpeed",
+  ]);
+
+  const TENTH_NUMBER_STATS = new Set([
+    "DamageAbsorption",
+  ]);
+
+  const HUNDREDTH_NUMBER_STATS = new Set([
+    "HpRegenPerSec",
+  ]);
+
+  function getStatValueFormat(stat, mod) {
+    if (mod === "ADDITIVE" || mod === "MULTIPLICATIVE") {
+      return { divisor: 10, suffix: "%", decimals: 1, minimumDecimals: 0, category: "割合" };
+    }
+    if (INTEGER_PERCENT_STATS.has(stat)) {
+      return { divisor: 1, suffix: "%", decimals: 0, minimumDecimals: 0, category: "割合" };
+    }
+    if (TENTH_PERCENT_STATS.has(stat)) {
+      return { divisor: 10, suffix: "%", decimals: 1, minimumDecimals: 0, category: "割合" };
+    }
+    if (TENTH_NUMBER_STATS.has(stat)) {
+      return { divisor: 10, suffix: "", decimals: 1, minimumDecimals: 0, category: "数値" };
+    }
+    if (HUNDREDTH_NUMBER_STATS.has(stat)) {
+      return { divisor: 100, suffix: "", decimals: 1, minimumDecimals: 1, category: "数値" };
+    }
+    return { divisor: 1, suffix: "", decimals: 0, minimumDecimals: 0, category: "数値" };
+  }
+
+  function getStatDisplayNumber(stat, mod, rawValue) {
+    const numericValue = Number(rawValue);
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+    const format = getStatValueFormat(stat, mod);
+    return numericValue / format.divisor;
+  }
+
+  function formatStatValue(stat, mod, rawValue, options = {}) {
+    const displayValue = getStatDisplayNumber(stat, mod, rawValue);
+    if (displayValue === null) {
+      return EMPTY_LABEL;
+    }
+    const format = getStatValueFormat(stat, mod);
+    const fractionDigits = format.decimals;
+    const text = displayValue.toLocaleString("ja-JP", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: fractionDigits,
+      useGrouping: false,
+    });
+    const prefix = options.signed !== false && displayValue > 0 ? "+" : "";
+    return `${prefix}${text}${format.suffix}`;
+  }
+
+  function getStatFormatDescription(stat, mod) {
+    const format = getStatValueFormat(stat, mod);
+    const scaleText = format.divisor === 1 ? "内部値と同値" : `内部値÷${format.divisor}`;
+    return `${format.category} / ${scaleText}${format.suffix ? ` / ${format.suffix}表記` : ""}`;
   }
 
   function parseOptionalNumber(value) {
@@ -418,9 +546,9 @@
 
   /* ========================================================
      素材データを表示行へ展開します。
-     装飾・彫刻・碑文は効果のTier行ごとに1行にするため、
-     MaterialInfoData / StatModGroupInfoData / StatModInfoDataの
-     全パラメータを列として欠落なく表示できます。
+     装飾・彫刻・碑文は効果のTier行ごとに1行へ展開します。
+     結果表は利用頻度の高い列だけを表示し、内部キーやTierは
+     アイテム詳細の元データから確認できます。
      ======================================================== */
   function buildMaterialRows(category) {
     const rows = [];
@@ -747,7 +875,14 @@
       ...(item.classes ?? []).map(getClassLabel),
     ];
     for (const stat of getAllStats(item)) {
-      values.push(stat.stat, getStatLabel(stat.stat), stat.mod, MOD_LABELS[stat.mod], stat.disp, stat.value);
+      values.push(
+        stat.stat,
+        getStatLabel(stat.stat),
+        stat.mod,
+        MOD_LABELS[stat.mod],
+        formatStatValue(stat.stat, stat.mod, stat.value),
+        stat.value,
+      );
     }
     return values.some((value) => normalizeText(value).includes(keyword));
   }
@@ -788,7 +923,11 @@
       return (filter.source === "any" || stat.source === filter.source)
         && stat.stat === filter.stat
         && (!filter.mod || stat.mod === filter.mod)
-        && matchesRange(Number(stat.value), filter.min, filter.max);
+        && matchesRange(
+          getStatDisplayNumber(stat.stat, stat.mod, stat.value),
+          filter.min,
+          filter.max,
+        );
     });
   }
 
@@ -841,6 +980,9 @@
       getStatLabel(result.tier?.stat),
       result.tier?.mod,
       MOD_LABELS[result.tier?.mod],
+      formatStatValue(result.tier?.stat, result.tier?.mod, result.tier?.minValue),
+      formatStatValue(result.tier?.stat, result.tier?.mod, result.tier?.maxValue),
+      formatStatValue(result.tier?.stat, result.tier?.mod, result.tier?.interval, { signed: false }),
       result.tier?.minValue,
       result.tier?.maxValue,
       result.tier?.interval,
@@ -869,8 +1011,16 @@
         || !filters.materialMod
         || tier?.mod === filters.materialMod)
       && matchesRange(tier?.tier, filters.materialTierMin, filters.materialTierMax)
-      && matchesRange(tier?.minValue, filters.materialValueMin, null)
-      && matchesRange(tier?.maxValue, null, filters.materialValueMax);
+      && matchesRange(
+        getStatDisplayNumber(tier?.stat, tier?.mod, tier?.minValue),
+        filters.materialValueMin,
+        null,
+      )
+      && matchesRange(
+        getStatDisplayNumber(tier?.stat, tier?.mod, tier?.maxValue),
+        null,
+        filters.materialValueMax,
+      );
   }
 
   /* ========================================================
@@ -1014,9 +1164,20 @@
       .filter((stat) => (source === "any" || stat.source === source)
         && stat.stat === selectedStat
         && (!mod || stat.mod === mod))
-      .map((stat) => Number(stat.value))
+      .map((stat) => getStatDisplayNumber(stat.stat, stat.mod, stat.value))
       .filter(Number.isFinite);
     return values.length ? Math.max(...values) : null;
+  }
+
+  function getMaterialAverageValue(result) {
+    const stat = result.tier?.stat;
+    const mod = result.tier?.mod;
+    const minimum = getStatDisplayNumber(stat, mod, result.tier?.minValue);
+    const maximum = getStatDisplayNumber(stat, mod, result.tier?.maxValue);
+    if (minimum === null || maximum === null) {
+      return null;
+    }
+    return (minimum + maximum) / 2;
   }
 
   function sortResults(results) {
@@ -1046,14 +1207,18 @@
       } else if (key === "material-stat") {
         comparison = getStatLabel(left.tier?.stat)
           .localeCompare(getStatLabel(right.tier?.stat), "ja") * factor;
-      } else if (key === "tier") {
-        comparison = compareOptionalNumbers(left.tier?.tier, right.tier?.tier, factor);
-      } else if (key === "min-value") {
-        comparison = compareOptionalNumbers(left.tier?.minValue, right.tier?.minValue, factor);
-      } else if (key === "max-value") {
-        comparison = compareOptionalNumbers(left.tier?.maxValue, right.tier?.maxValue, factor);
+      } else if (key === "average-value") {
+        comparison = compareOptionalNumbers(
+          getMaterialAverageValue(left),
+          getMaterialAverageValue(right),
+          factor,
+        );
       } else if (key === "interval") {
-        comparison = compareOptionalNumbers(left.tier?.interval, right.tier?.interval, factor);
+        comparison = compareOptionalNumbers(
+          getStatDisplayNumber(left.tier?.stat, left.tier?.mod, left.tier?.interval),
+          getStatDisplayNumber(right.tier?.stat, right.tier?.mod, right.tier?.interval),
+          factor,
+        );
       } else {
         comparison = (Number(leftItem.key) - Number(rightItem.key)) * factor;
       }
@@ -1078,8 +1243,8 @@
     }
     return `<div class="stat-list">${stats.map((stat) => {
       const sourceLabel = stat.source === "base" ? "基本" : "固有";
-      const displayValue = stat.disp || formatNumber(stat.value);
-      const title = `${sourceLabel} / ${MOD_LABELS[stat.mod] ?? stat.mod} / raw: ${stat.value}`;
+      const displayValue = stat.disp || formatStatValue(stat.stat, stat.mod, stat.value);
+      const title = `${sourceLabel} / ${MOD_LABELS[stat.mod] ?? stat.mod} / ${getStatFormatDescription(stat.stat, stat.mod)} / raw: ${stat.value}`;
       return `<span class="stat-badge" title="${escapeHtml(title)}">${escapeHtml(getStatLabel(stat.stat))} ${escapeHtml(displayValue)}</span>`;
     }).join("")}</div>`;
   }
@@ -1099,7 +1264,7 @@
       { key: "level", label: "Lv", text: (r) => formatNumber(r.item.level) },
       { key: "class", label: "クラス", text: (r) => (r.item.classes ?? []).map(getClassLabel).join(" / ") || EMPTY_LABEL },
       { key: "equipment", label: "装備分類", text: (r) => getGearTypeLabel(r.item.gearType) },
-      { key: "stats", label: "能力", text: (r) => getAllStats(r.item).map((s) => `${getStatLabel(s.stat)} ${s.disp || formatNumber(s.value)}`).join(" / ") || EMPTY_LABEL, html: (r) => renderGearStats(r.item) },
+      { key: "stats", label: "能力", text: (r) => getAllStats(r.item).map((s) => `${getStatLabel(s.stat)} ${s.disp || formatStatValue(s.stat, s.mod, s.value)}`).join(" / ") || EMPTY_LABEL, html: (r) => renderGearStats(r.item) },
       { key: "unique", label: "ユニーク能力", text: (r) => getUniqueModLabel(r.item.uniqueMod) },
       { key: "gold", label: "ゴールド", text: (r) => formatNumber(r.item.gold) },
       { key: "status", label: "状態", text: (r) => `${r.item.obtainable ? "入手可" : "入手不可"} / ${r.item.tradable ? "取引可" : "取引不可"}`, html: (r) => renderStatus(r.item) },
@@ -1112,43 +1277,83 @@
   }
 
   function getMaterialColumns(oneScreen = false) {
-    const generic = isGenericMaterialMode();
-    const common = [
-      { key: "item-key", label: "ID", text: (r) => r.item.key },
-      { key: "name", label: "名称", text: (r) => getJapaneseName(r.item), html: (r) => `<div class="name-cell"><strong>${escapeHtml(getJapaneseName(r.item))}</strong><span>${escapeHtml(r.item.name ?? EMPTY_LABEL)}</span></div>` },
-      { key: "grade", label: "レアリティ", text: (r) => getGradeLabel(r.item.grade), html: (r) => `<span class="badge grade-badge">${escapeHtml(getGradeLabel(r.item.grade))}</span>` },
-      { key: "material-type", label: "素材種別", text: (r) => getMaterialTypeLabel(r.item.materialInfo?.materialType) },
-    ];
-
-    if (generic) {
-      const columns = [
-        ...common,
-        { key: "gold", label: "ゴールド", text: (r) => formatNumber(r.item.gold) },
-        { key: "status", label: "状態", text: (r) => `${r.item.obtainable ? "入手可" : "入手不可"} / ${r.item.tradable ? "取引可" : "取引不可"}`, html: (r) => renderStatus(r.item) },
-      ];
-      return oneScreen ? columns.filter((column) => column.key !== "item-key") : columns;
-    }
-
     const columns = [
-      ...common,
-      { key: "group-key", label: "StatModGroupKey", text: (r) => formatNumber(r.item.materialInfo?.statModGroupKey) },
-      { key: "target", label: "対象装備分類", text: (r) => getGearGroupLabel(r.effect?.gearGroup) },
-      { key: "stat-mod-key", label: "StatModKey", text: (r) => formatNumber(r.effect?.statModKey) },
-      { key: "tier-range", label: "適用Tier範囲", text: (r) => r.effect ? `${r.effect.minTier}〜${r.effect.maxTier}` : EMPTY_LABEL },
-      { key: "tier", label: "データTier", text: (r) => formatNumber(r.tier?.tier) },
-      { key: "stat", label: "能力", text: (r) => getStatLabel(r.tier?.stat) },
-      { key: "mod", label: "計算方式", text: (r) => MOD_LABELS[r.tier?.mod] ?? r.tier?.mod ?? EMPTY_LABEL },
-      { key: "min-value", label: "最小値(raw)", text: (r) => formatNumber(r.tier?.minValue) },
-      { key: "max-value", label: "最大値(raw)", text: (r) => formatNumber(r.tier?.maxValue) },
-      { key: "interval", label: "刻み(raw)", text: (r) => formatNumber(r.tier?.interval) },
-      { key: "gold", label: "ゴールド", text: (r) => formatNumber(r.item.gold) },
-      { key: "status", label: "状態", text: (r) => `${r.item.obtainable ? "入手可" : "入手不可"} / ${r.item.tradable ? "取引可" : "取引不可"}`, html: (r) => renderStatus(r.item) },
+      {
+        key: "name",
+        label: "名称",
+        text: (result) => getJapaneseName(result.item),
+        html: (result) => `<div class="name-cell"><strong>${escapeHtml(getJapaneseName(result.item))}</strong><span>${escapeHtml(result.item.name ?? EMPTY_LABEL)}</span></div>`,
+      },
+      {
+        key: "grade",
+        label: "レアリティ",
+        text: (result) => getGradeLabel(result.item.grade),
+        html: (result) => `<span class="badge grade-badge">${escapeHtml(getGradeLabel(result.item.grade))}</span>`,
+      },
+      {
+        key: "material-type",
+        label: "素材種別",
+        text: (result) => getMaterialTypeLabel(result.item.materialInfo?.materialType),
+      },
+      {
+        key: "target",
+        label: "対象装備分類",
+        text: (result) => getGearGroupLabel(result.effect?.gearGroup),
+      },
+      {
+        key: "stat",
+        label: "能力",
+        text: (result) => getStatLabel(result.tier?.stat),
+      },
+      {
+        key: "mod",
+        label: "計算方式",
+        text: (result) => MOD_LABELS[result.tier?.mod] ?? result.tier?.mod ?? EMPTY_LABEL,
+      },
+      {
+        key: "min-value",
+        label: "最小値",
+        text: (result) => formatStatValue(
+          result.tier?.stat,
+          result.tier?.mod,
+          result.tier?.minValue,
+        ),
+        html: (result) => `<span title="${escapeHtml(getStatFormatDescription(result.tier?.stat, result.tier?.mod))} / raw: ${escapeHtml(result.tier?.minValue)}">${escapeHtml(formatStatValue(result.tier?.stat, result.tier?.mod, result.tier?.minValue))}</span>`,
+      },
+      {
+        key: "max-value",
+        label: "最大値",
+        text: (result) => formatStatValue(
+          result.tier?.stat,
+          result.tier?.mod,
+          result.tier?.maxValue,
+        ),
+        html: (result) => `<span title="${escapeHtml(getStatFormatDescription(result.tier?.stat, result.tier?.mod))} / raw: ${escapeHtml(result.tier?.maxValue)}">${escapeHtml(formatStatValue(result.tier?.stat, result.tier?.mod, result.tier?.maxValue))}</span>`,
+      },
+      {
+        key: "interval",
+        label: "刻み",
+        text: (result) => formatStatValue(
+          result.tier?.stat,
+          result.tier?.mod,
+          result.tier?.interval,
+          { signed: false },
+        ),
+        html: (result) => `<span title="${escapeHtml(getStatFormatDescription(result.tier?.stat, result.tier?.mod))} / raw: ${escapeHtml(result.tier?.interval)}">${escapeHtml(formatStatValue(result.tier?.stat, result.tier?.mod, result.tier?.interval, { signed: false }))}</span>`,
+      },
+      {
+        key: "gold",
+        label: "ゴールド",
+        text: (result) => formatNumber(result.item.gold),
+      },
+      {
+        key: "status",
+        label: "状態",
+        text: (result) => `${result.item.obtainable ? "入手可" : "入手不可"} / ${result.item.tradable ? "取引可" : "取引不可"}`,
+        html: (result) => renderStatus(result.item),
+      },
     ];
-    if (!oneScreen) {
-      return columns;
-    }
-    const allowed = new Set(["name", "grade", "target", "stat", "mod", "tier", "min-value", "max-value", "interval"]);
-    return columns.filter((column) => allowed.has(column.key));
+    return columns;
   }
 
   function getCurrentColumns(oneScreen = false) {
@@ -1358,7 +1563,7 @@
     if (!stats.length) {
       return `<p class="muted">なし</p>`;
     }
-    return `<div class="detail-stat-list">${stats.map((stat) => `<div class="detail-stat-row"><strong>${escapeHtml(getStatLabel(stat.stat))}</strong><span>${escapeHtml(stat.disp || formatNumber(stat.value))}</span><code>${escapeHtml(MOD_LABELS[stat.mod] ?? stat.mod)} / raw ${escapeHtml(stat.value)}</code></div>`).join("")}</div>`;
+    return `<div class="detail-stat-list">${stats.map((stat) => `<div class="detail-stat-row"><strong>${escapeHtml(getStatLabel(stat.stat))}</strong><span>${escapeHtml(stat.disp || formatStatValue(stat.stat, stat.mod, stat.value))}</span><code>${escapeHtml(MOD_LABELS[stat.mod] ?? stat.mod)} / ${escapeHtml(getStatFormatDescription(stat.stat, stat.mod))} / raw ${escapeHtml(stat.value)}</code></div>`).join("")}</div>`;
   }
 
   function renderMaterialEffectDetail(item) {
@@ -1373,8 +1578,8 @@
       return '<p class="muted">この素材には能力付与パラメータがありません。</p>';
     }
     return `<div class="detail-effect-table-wrap"><table class="detail-effect-table">
-      <thead><tr><th>対象</th><th>StatModKey</th><th>適用Tier</th><th>データTier</th><th>能力</th><th>方式</th><th>最小値(raw)</th><th>最大値(raw)</th><th>刻み(raw)</th></tr></thead>
-      <tbody>${rows.map(({ effect, tier }) => `<tr><td>${escapeHtml(getGearGroupLabel(effect.gearGroup))}</td><td>${escapeHtml(effect.statModKey)}</td><td>${escapeHtml(`${effect.minTier}〜${effect.maxTier}`)}</td><td>${escapeHtml(tier.tier)}</td><td>${escapeHtml(getStatLabel(tier.stat))}</td><td>${escapeHtml(MOD_LABELS[tier.mod] ?? tier.mod)}</td><td>${escapeHtml(formatNumber(tier.minValue))}</td><td>${escapeHtml(formatNumber(tier.maxValue))}</td><td>${escapeHtml(formatNumber(tier.interval))}</td></tr>`).join("")}</tbody>
+      <thead><tr><th>対象</th><th>StatModKey</th><th>適用Tier</th><th>データTier</th><th>能力</th><th>方式</th><th>最小値</th><th>最大値</th><th>刻み</th></tr></thead>
+      <tbody>${rows.map(({ effect, tier }) => `<tr><td>${escapeHtml(getGearGroupLabel(effect.gearGroup))}</td><td>${escapeHtml(effect.statModKey)}</td><td>${escapeHtml(`${effect.minTier}〜${effect.maxTier}`)}</td><td>${escapeHtml(tier.tier)}</td><td>${escapeHtml(getStatLabel(tier.stat))}</td><td title="${escapeHtml(getStatFormatDescription(tier.stat, tier.mod))}">${escapeHtml(MOD_LABELS[tier.mod] ?? tier.mod)}</td><td title="raw: ${escapeHtml(tier.minValue)}">${escapeHtml(formatStatValue(tier.stat, tier.mod, tier.minValue))}</td><td title="raw: ${escapeHtml(tier.maxValue)}">${escapeHtml(formatStatValue(tier.stat, tier.mod, tier.maxValue))}</td><td title="raw: ${escapeHtml(tier.interval)}">${escapeHtml(formatStatValue(tier.stat, tier.mod, tier.interval, { signed: false }))}</td></tr>`).join("")}</tbody>
     </table></div>`;
   }
 
@@ -1461,47 +1666,36 @@
         item.slots?.decoration,
         item.slots?.engraving,
         item.slots?.inscription,
-        (item.stats?.base ?? []).map((stat) => `${stat.stat}:${stat.mod}:${stat.value}`).join(" / "),
-        (item.stats?.inherent ?? []).map((stat) => `${stat.stat}:${stat.mod}:${stat.value}`).join(" / "),
+        (item.stats?.base ?? []).map((stat) => `${stat.stat}:${stat.mod}:${stat.disp || formatStatValue(stat.stat, stat.mod, stat.value)}:raw=${stat.value}`).join(" / "),
+        (item.stats?.inherent ?? []).map((stat) => `${stat.stat}:${stat.mod}:${stat.disp || formatStatValue(stat.stat, stat.mod, stat.value)}:raw=${stat.value}`).join(" / "),
         item.uniqueMod,
       ]);
-    } else if (isGenericMaterialMode()) {
-      headers = ["item-key", "name-ja", "name-en", "grade", "material-category", "material-type", "stat-mod-group-key", "gold", "obtainable", "tradable"];
-      rows = state.results.map(({ item }) => [
-        item.key,
-        getJapaneseName(item),
-        item.name,
-        item.grade,
-        item.materialInfo?.category,
-        item.materialInfo?.materialType,
-        item.materialInfo?.statModGroupKey,
-        item.gold,
-        item.obtainable,
-        item.tradable,
-      ]);
     } else {
-      headers = ["item-key", "name-ja", "name-en", "grade", "material-category", "material-type", "stat-mod-group-key", "target-gear-group", "stat-mod-key", "min-tier", "max-tier", "tier", "stat-type", "mod-type", "min-value", "max-value", "interval", "gold", "obtainable", "tradable"];
+      headers = [
+        "name",
+        "grade",
+        "material-type",
+        "target-gear-group",
+        "stat-type",
+        "mod-type",
+        "min-value-display",
+        "max-value-display",
+        "interval-display",
+        "gold",
+        "status",
+      ];
       rows = state.results.map(({ item, effect, tier }) => [
-        item.key,
         getJapaneseName(item),
-        item.name,
-        item.grade,
-        item.materialInfo?.category,
-        item.materialInfo?.materialType,
-        item.materialInfo?.statModGroupKey,
-        effect?.gearGroup,
-        effect?.statModKey,
-        effect?.minTier,
-        effect?.maxTier,
-        tier?.tier,
-        tier?.stat,
-        tier?.mod,
-        tier?.minValue,
-        tier?.maxValue,
-        tier?.interval,
+        getGradeLabel(item.grade),
+        getMaterialTypeLabel(item.materialInfo?.materialType),
+        getGearGroupLabel(effect?.gearGroup),
+        getStatLabel(tier?.stat),
+        MOD_LABELS[tier?.mod] ?? tier?.mod ?? EMPTY_LABEL,
+        formatStatValue(tier?.stat, tier?.mod, tier?.minValue),
+        formatStatValue(tier?.stat, tier?.mod, tier?.maxValue),
+        formatStatValue(tier?.stat, tier?.mod, tier?.interval, { signed: false }),
         item.gold,
-        item.obtainable,
-        item.tradable,
+        `${item.obtainable ? "入手可" : "入手不可"} / ${item.tradable ? "取引可" : "取引不可"}`,
       ]);
     }
 
